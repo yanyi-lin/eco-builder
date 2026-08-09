@@ -149,6 +149,7 @@ You are an ecosystem model builder. Build models efficiently from natural langua
 - 代码托管：`github.com/yanyi-lin/eco-agent`
 - 运行：Cloudflare Workers（Workers Builds 自动部署）
 - LLM：DeepSeek 官方 API（OpenAI 兼容）
+- 访问地址：`https://eco-agent.yanyi-lin.workers.dev`
 
 ### 8.2 环境变量
 
@@ -158,7 +159,24 @@ You are an ecosystem model builder. Build models efficiently from natural langua
 | `OPENAI_MODEL` | `deepseek-v4-flash` |
 | `OPENAI_API_KEY` | DeepSeek API Key（secret，不入库） |
 
-### 8.3 Cloudflare 操作
+### 8.3 Token 使用限制
+
+为控制成本，实施了每日 token 使用限制：
+
+- **限制额度**：每日 500 万 tokens（约 5 元人民币）
+- **定价参考**（DeepSeek V4 Flash）：
+  - 输入：0.5 元 / 百万 tokens
+  - 输出：2 元 / 百万 tokens
+- **实现方式**：
+  - 在 Durable Object 的 SQLite 中创建 `token_usage` 表
+  - 每次 API 调用后，从响应的 `usage` 字段提取 `inputTokens` 和 `outputTokens`
+  - 按日期累加到表中
+  - 请求前检查当日累计是否超限
+  - 超限时返回 429 错误，提示用户明日再试
+- **限制范围**：按 Durable Object 实例（每个用户会话独立）
+- **如需全局限制**：需改用 KV 存储
+
+### 8.4 Cloudflare 操作
 
 ```bash
 npx wrangler login          # 浏览器授权
