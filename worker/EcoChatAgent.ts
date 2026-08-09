@@ -56,8 +56,8 @@ const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回�
 操作后简述结果。`;
 
 export class EcoChatAgent extends AIChatAgent<Env> {
-  async onStart() {
-    // 初始化 token 使用量追踪表
+  private async ensureTokenTable() {
+    // 在第一次使用时创建表（幂等操作）
     await this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS token_usage (
         date TEXT PRIMARY KEY,
@@ -69,6 +69,7 @@ export class EcoChatAgent extends AIChatAgent<Env> {
   }
 
   private async getTodayUsage(): Promise<number> {
+    await this.ensureTokenTable();
     const today = new Date().toISOString().split('T')[0];
     const result = await this.ctx.storage.sql.exec(
       `SELECT total_tokens FROM token_usage WHERE date = ?`,
@@ -79,6 +80,7 @@ export class EcoChatAgent extends AIChatAgent<Env> {
   }
 
   private async recordUsage(promptTokens: number, completionTokens: number) {
+    await this.ensureTokenTable();
     const today = new Date().toISOString().split('T')[0];
     const total = promptTokens + completionTokens;
     
