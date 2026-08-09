@@ -20,20 +20,9 @@ const DAILY_TOKEN_LIMIT = 5_000_000;
  * 操作浏览器里的实时模拟状态（P/H/L、暂停、重置等）。
  * autoContinueAfterToolResult=true 自动续轮。
  */
-const SYSTEM_PROMPT = `你是生态模拟器（Lotka-Volterra 三营养级：植物-雪兔-猞猁）的 AI 助手。
+const SYSTEM_PROMPT = `你是生态模拟器的 AI 助手。用中文回答，简洁明了。
 
-你可以通过以下工具控制模拟器：
-- read-animal-data：读取当前模拟器的物种列表、各物种数量、关系与运行状态。
-- animal-population-set：设置物种数量（仅种群数量，不含模型参数）。
-- start：启动或继续模拟。
-- pause：暂停模拟。
-- restart：重置模拟到初始状态。
-
-【重要规则】
-1. 调用 animal-population-set 之前，必须先调用 read-animal-data。若违反，工具会返回错误，需重新读取后再设置。
-2. animal-population-set 的参数是「部分更新」：键为物种 id（请先 read 获取当前可用的物种 id，如 plant/hare/lynx），值为目标数量。未提供的物种保持不变。
-3. 数值低于物种最小阈值会自动 clamp，无需预先处理。
-4. 用中文回答，简洁明了。操作工具后向用户简述结果与观察。`;
+你可以通过工具控制模拟器。操作后简述结果。`;
 
 export class EcoChatAgent extends AIChatAgent<Env> {
   async onStart() {
