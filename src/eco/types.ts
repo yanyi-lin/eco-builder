@@ -57,23 +57,34 @@ export interface SpeciesDef {
   maxCapacityRatio?: number;
 }
 
-/** 关系类型。v1 只实现 predation，预留扩展。 */
-export type RelationType = "predation";
+/** 关系类型 */
+export type RelationType = "predation" | "competition" | "mutualism";
 
 /** 关系定义 */
 export interface RelationDef {
   type: RelationType;
+  
+  // === predation 专用 ===
   /** 被捕食者 speciesId */
-  prey: string;
+  prey?: string;
   /** 捕食者 speciesId */
-  predator: string;
+  predator?: string;
   /** 捕食率参数键，如 "a" / "b" */
-  predationRate: string;
+  predationRate?: string;
   /** 转化效率参数键（捕食者从猎物获得的增长），如 "e" / "f" */
-  conversionEfficiency: string;
-  /** 捕食者死亡率参数键（可选，顶级捕食者如猞猁的 "m"）。
-   *  产生 -params[predatorDeathRate]·predator 项。 */
+  conversionEfficiency?: string;
+  /** 捕食者死亡率参数键（可选，顶级捕食者如猞猁的 "m"） */
   predatorDeathRate?: string;
+  
+  // === competition / mutualism 专用 ===
+  /** 物种1 speciesId */
+  species1?: string;
+  /** 物种2 speciesId */
+  species2?: string;
+  /** 物种1受影响的参数键（competition: 竞争抑制系数；mutualism: 互利增益系数） */
+  coeff1?: string;
+  /** 物种2受影响的参数键 */
+  coeff2?: string;
 }
 
 /** 完整模型规格 */
@@ -120,8 +131,12 @@ export interface SpeciesSnapshot {
 /** read-animal-data 返回的关系摘要 */
 export interface RelationSnapshot {
   type: RelationType;
-  prey: string;
-  predator: string;
+  // predation
+  prey?: string;
+  predator?: string;
+  // competition / mutualism
+  species1?: string;
+  species2?: string;
 }
 
 /** read-animal-data 完整快照 */

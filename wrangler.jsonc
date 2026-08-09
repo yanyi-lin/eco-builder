@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "eco-simulator-agent",
+  "name": "eco-agent",
   "compatibility_date": "2025-01-15",
   "compatibility_flags": ["nodejs_compat"],
   "main": "worker/index.ts",
@@ -17,8 +17,8 @@
     { "tag": "v1", "new_sqlite_classes": ["EcoChatAgent"] }
   ],
   "vars": {
-    "OPENAI_BASE_URL": "https://integrate.api.nvidia.com/v1",
-    "OPENAI_MODEL": "stepfun-ai/step-3.7-flash"
+    "OPENAI_BASE_URL": "https://api.deepseek.com",
+    "OPENAI_MODEL": "deepseek-v4-flash"
   },
   "observability": {
     "enabled": true

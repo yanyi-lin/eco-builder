@@ -64,11 +64,13 @@ export function readAnimalData(api: EcoApi): ReadToolResult {
       minValue: s.minValue,
       axis: s.axis,
     })),
-    relations: api.spec.relations.map((r) => ({
-      type: r.type,
-      prey: r.prey,
-      predator: r.predator,
-    })),
+    relations: api.spec.relations.map((r) => {
+      if (r.type === "predation") {
+        return { type: r.type, prey: r.prey, predator: r.predator };
+      } else {
+        return { type: r.type, species1: r.species1, species2: r.species2 };
+      }
+    }),
     currentTime: api.currentTime,
     simulationRunning: api.simulationRunning,
     simulationActive: api.simulationActive,

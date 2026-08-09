@@ -1,0 +1,177 @@
+# eco-agent 设计文档
+
+> 本文档记录 eco-builder（Agent 引导式生态模拟构建）的设计决策，供后续开发与协作参考。
+
+## 1. 目标
+
+让学生通过自然语言与 Agent 对话，快速构建可运行的生态模拟模型（Lotka-Volterra 类）。
+流程：**识别组分 → 获取数据 → 界定关系 → 设置参数 → 构建并运行**。
+
+## 2. 核心原则
+
+- **Agent 主导，快速构建**：不教学引导，直接帮学生建模型（教学解释由后续"教学 skills"功能承担）。
+- **数据驱动**：Agent 优先通过工具从数据源获取物种分类与交互关系。
+- **自主决策**：Agent 根据数据完备性自行决定下一步——能推断就推断，数据缺失才向学生提问。
+- **组分数量限制**：≤ 10 个，建议 ≤ 5 个，超出则引导学生精简。
+- **中文输出，英文 System Prompt**：LLM 逻辑更稳定。
+
+## 3. Agent 工作流
+
+### 3.1 整体流程
+
+```
+学生输入自然语言描述（如"模拟草原上的草、兔、狐"）
+        │
+        ▼
+Step 1  组分识别：提取物种候选（≤5 个）
+        │
+        ▼
+Step 2  数据获取：工具查询 GBIF（分类）/ GloBI（交互）
+        │
+        ▼
+Step 3  缺失判断：数据不足 → 向学生提问补全；数据完备 → 继续
+        │
+        ▼
+Step 4  参数设置：基于分类学经验值 + 学生定性输入
+        │
+        ▼
+Step 5  构建模型：生成 EcoModelSpec 并注册
+        │
+        ▼
+Step 6  运行模拟：切换到模拟模式
+```
+
+### 3.2 工具设计（5 个）
+
+| 工具 | 作用 | 数据源 | 执行位置 |
+|------|------|--------|----------|
+| `search-species` | 搜索物种分类信息 | GBIF species/match API | 前端（浏览器 fetch） |
+| `query-interactions` | 查询两物种间交互关系 | GloBI API | 前端（浏览器 fetch） |
+| `build-model` | 根据物种+关系+参数生成 spec 并注册 | 本地 | 前端 |
+| `run-model` | 切换到模拟模式并运行 | 本地 | 前端 |
+| `get-current-model` | 读取当前构建状态 | 本地 | 前端 |
+
+> 说明：builder 工具沿用现有架构模式——Worker 声明 schema，前端 onToolCall 执行。
+> 数据源 API（GBIF/GloBI）因 CORS 与可达性问题，可能需经 Worker 代理，见第 5 节。
+
+### 3.3 自主决策逻辑
+
+Agent 不应机械按步骤执行，而应：
+
+1. **尝试获取**：先调用工具查询数据。
+2. **判断完备性**：
+   - 物种 EXACT 匹配且置信度 ≥ 90 → 静默接受；
+   - 多候选/低置信度 → 提问让用户选择；
+   - 无匹配 → 请求用户替换物种。
+3. **关系推断**：GloBI 返回交互则确认关系类型；否则问学生。
+4. **参数估计**：按分类学给默认值；学生给出定性描述（"繁殖快/慢"）时调整。
+5. **数据完备即构建**：不重复提问，构建后立即运行。
+
+## 4. 缺失场景与提问策略
+
+| 缺失类型 | Agent 行为 | 提问示例 |
+|----------|-----------|----------|
+| 物种找不到 | 请求替换 | "找不到'独角兽'，能换个物种吗？" |
+| 物种歧义 | 给选项 | "草指什么？1.禾本科 2.三叶草 3.其他" |
+| 关系未知 | 问关系类型 | "草和兔之间是什么关系？捕食/竞争/互利/无关" |
+| 参数无数据 | 问定性估计 | "兔的繁殖速度你估计快还是慢？" |
+| 组分过多 | 请求精简 | "超过 5 个了，保留哪 5 个？" |
+
+## 5. 数据源策略
+
+### 5.1 可达性结论（中国大陆无代理实测，2026-08）
+
+| 数据源 | 状态 | 说明 |
+|--------|------|------|
+| GBIF API (api.gbif.org) | ✅ 可达（约 1.8s） | 物种匹配、出现记录 |
+| GloBI API (api.globalbioticinteractions.org) | ✅ 可达（约 1.2s） | 交互网络 |
+| NESDC / CERN | ✅ 首页可达 | API 待探索 |
+| CoLChina / Geodata / ScienceDB / BioONE | ❌ 不可达 | 连接超时 |
+
+> 注：实测环境为 WARP 代理至美国，结果可能与真实大陆网络略有差异；
+> 但 GBIF/GloBI 相对稳定，作为默认数据源风险较低。
+
+### 5.2 本地数据缓存
+
+已预取部分数据至 `data/raw/`（GBIF 物种匹配 + GloBI 交互，共 19 个文件），
+供 Agent 离线兜底或快速演示。数据文件清单见 `data/REACHABILITY.md`。
+
+### 5.3 三级回退（后续可选）
+
+1. 优先本地缓存（`data/raw/`）
+2. 其次实时查询 GBIF / GloBI
+3. 最后向学生提问补全
+
+## 6. System Prompt（英文，写入 EcoChatAgent）
+
+```
+You are an ecosystem model builder. Build models efficiently from natural language.
+
+## Tools
+- search-species: Query GBIF for species taxonomy. Returns match confidence and classification.
+- query-interactions: Query GloBI for species interactions. Returns interaction type.
+- build-model: Create EcoModelSpec from species, relations, and parameters.
+- run-model: Switch to simulation mode and start.
+- get-current-model: Read current build state.
+
+## Workflow
+1. Parse user description, extract species candidates (max 5).
+2. For each species, call search-species.
+   - EXACT match with confidence >= 90: accept silently.
+   - Multiple candidates or low confidence: ask user to choose.
+   - No match: ask user for alternative.
+3. For each species pair, call query-interactions.
+   - If found: determine type (predation/competition/mutualism).
+   - If not found: ask user to specify relationship.
+4. Parameters: use ecological defaults based on taxonomy. Adjust if user gives qualitative hints.
+5. Call build-model, then run-model.
+
+## Rules
+- Max 5 species. If more, ask user to trim.
+- Do NOT teach or explain ecology. Just build.
+- Build immediately when data is complete. Only ask when data is genuinely missing.
+- Respond in Chinese, keep responses short.
+```
+
+## 7. 关系类型扩展（Phase 1 已完成）
+
+- `RelationType` 扩展为 `"predation" | "competition" | "mutualism"`
+- `derivatives.ts` 新增分支：
+  - **competition**：`dN1 -= α1·N1·N2`，`dN2 -= α2·N1·N2`
+  - **mutualism**：`dN1 += β1·N1·N2`，`dN2 += β2·N1·N2`
+- `RelationDef` / `RelationSnapshot` 接口已同步更新
+- 现有 `lotkaVolterra3` 模型不受影响（类型检查通过）
+
+## 8. 部署方案（GitHub + Cloudflare）
+
+### 8.1 结构
+
+- 代码托管：`github.com/yanyi-lin/eco-agent`
+- 运行：Cloudflare Workers（Workers Builds 自动部署）
+- LLM：DeepSeek 官方 API（OpenAI 兼容）
+
+### 8.2 环境变量
+
+| 变量 | 值 |
+|------|-----|
+| `OPENAI_BASE_URL` | `https://api.deepseek.com` |
+| `OPENAI_MODEL` | `deepseek-v4-flash` |
+| `OPENAI_API_KEY` | DeepSeek API Key（secret，不入库） |
+
+### 8.3 Cloudflare 操作
+
+```bash
+npx wrangler login          # 浏览器授权
+npx wrangler secret put OPENAI_API_KEY   # 输入 DeepSeek key
+npx wrangler deploy         # 部署
+```
+
+或 Cloudflare Dashboard → Workers → 连接 GitHub repo（Workers Builds）自动部署。
+
+## 9. 待办 / 下一步
+
+- [ ] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）
+- [ ] Phase 2b：EcoChatAgent System Prompt 更新（builder 模式）
+- [ ] Phase 2c：UI 模式切换（模拟模式 ↔ 构建模式）
+- [ ] 数据源 API 经 Worker 代理（解决 CORS + 统一回退逻辑）
+- [ ] 教学 skills（后续功能）
