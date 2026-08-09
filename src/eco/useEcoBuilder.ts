@@ -118,12 +118,16 @@ export function useEcoBuilder(
     get state() {
       return stateRef.current;
     },
-    setSpecies,
+    setSpecies: (species) => {
+      setSpecies(species);
+    },
     addSpecies,
     removeSpecies,
     addRelation,
     removeRelation,
-    setParams,
+    setParams: (params) => {
+      setParams(params);
+    },
     buildAndRun: (name, description) => {
       const spec = buildModel(stateRef.current, name, description);
       if (spec && onBuildAndRun) {

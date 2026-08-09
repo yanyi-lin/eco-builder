@@ -81,14 +81,16 @@ export function useEcoAgent(
         return builderRef.current.state;
       },
       setSpecies: (species) => {
-        builderRef.current.state.species = species;
+        // 直接调用 builder 的 setSpecies 方法
+        builderRef.current.api.setSpecies(species);
       },
       addSpecies: (species) => builderRef.current.addSpecies(species),
       removeSpecies: (id) => builderRef.current.removeSpecies(id),
       addRelation: (relation) => builderRef.current.addRelation(relation),
       removeRelation: (index) => builderRef.current.removeRelation(index),
       setParams: (params) => {
-        builderRef.current.state.params = params;
+        // 直接调用 builder 的 setParams 方法
+        builderRef.current.api.setParams(params);
       },
       buildAndRun: (name, description) => builderRef.current.buildAndRun(name, description),
     }),
