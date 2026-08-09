@@ -20,15 +20,40 @@ const DAILY_TOKEN_LIMIT = 5_000_000;
  * - 模拟模式：read-animal-data, animal-population-set, start, pause, restart
  * - 构建模式：search-species, query-interactions, add-species, add-relation, get-current-model, build-model, run-model
  */
-const SYSTEM_PROMPT = `你是生态模拟器的 AI 助手。用中文回答，简洁明了。
+const SYSTEM_PROMPT_SIMULATE = `你是生态模拟器的 AI 助手。用中文回答，简洁明了。
 
-你可以通过工具控制模拟器。操作后简述结果。
+当前处于【模拟模式】，可以控制已有模型的种群数量、启停模拟。
 
-当前有两种模式：
-- 模拟模式：控制已有模型的种群数量、启停模拟
-- 构建模式：帮用户构建新的生态模型（搜索物种、定义关系、设置参数）
+可用工具：
+- read-animal-data：读取当前物种列表、数量、关系与运行状态
+- animal-population-set：设置物种数量（部分更新）
+- start：启动或继续模拟
+- pause：暂停模拟
+- restart：重置模拟到初始状态
 
-根据用户意图选择工具。`;
+操作后简述结果。`;
+
+const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回答，简洁明了。
+
+当前处于【构建模式】，需要帮用户构建新的生态模型。
+
+## 构建工作流（必须按顺序完成）
+1. 对每个物种调用 search-species 获取拉丁名（注意：GBIF 不支持中文名，需要用户提供拉丁名或你推断）
+2. 对每个物种调用 add-species 添加到模型
+3. 对需要关系的物种对调用 query-interactions 查询交互
+4. 根据查询结果调用 add-relation 添加关系（捕食/竞争/互利）
+5. 最后调用 run-model 构建并运行
+
+## 示例：用户说"模拟草、兔、狐"
+→ search-species("Poaceae") → search-species("Lepus") → search-species("Vulpes")
+→ add-species(grass, hasLogistic=true) → add-species(rabbit) → add-species(fox)
+→ query-interactions("Poaceae", "Lepus") → query-interactions("Lepus", "Vulpes")
+→ add-relation(predation, grass, rabbit) → add-relation(predation, rabbit, fox)
+→ run-model()
+
+如果 GBIF 返回 matchType=NONE，告诉用户需要提供拉丁学名。
+
+操作后简述结果。`;
 
 export class EcoChatAgent extends AIChatAgent<Env> {
   async onStart() {
@@ -81,6 +106,21 @@ export class EcoChatAgent extends AIChatAgent<Env> {
         headers: { "Content-Type": "application/json" },
       });
     }
+
+    // 检测当前模式：从最后一条用户消息中查找 [MODE: build] 标记
+    const lastMessage = this.messages[this.messages.length - 1];
+    let isBuildMode = false;
+    
+    if (lastMessage?.role === "user" && Array.isArray(lastMessage.parts)) {
+      for (const part of lastMessage.parts) {
+        if (part.type === "text" && typeof part.text === "string" && part.text.includes("[MODE: build]")) {
+          isBuildMode = true;
+          break;
+        }
+      }
+    }
+    
+    const systemPrompt = isBuildMode ? SYSTEM_PROMPT_BUILD : SYSTEM_PROMPT_SIMULATE;
 
     // 用 openai-compatible provider：默认走 Chat Completions API（/chat/completions），
     // 兼容官方 OpenAI 及任意 OpenAI 兼容端点（第三方网关 / Ollama / 自建代理等），
@@ -181,10 +221,10 @@ export class EcoChatAgent extends AIChatAgent<Env> {
     const result = streamText({
       // openai-compatible provider 直接调用即走 Chat Completions（/chat/completions）
       model: provider(this.env.OPENAI_MODEL),
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: await convertToModelMessages(this.messages),
       tools,
-      stopWhen: stepCountIs(8),
+      stopWhen: stepCountIs(20),  // 构建模式需要更多步骤（约 11 步）
       abortSignal: options?.abortSignal,
       onFinish: async (event) => {
         // 记录 token 使用量

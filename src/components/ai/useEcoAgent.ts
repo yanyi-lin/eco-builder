@@ -136,7 +136,9 @@ export function useEcoAgent(
     });
 
   const send = (text: string) => {
-    sendMessage({ text });
+    // 在构建模式下，自动添加模式标记，让 LLM 知道当前模式
+    const modePrefix = modeRef.current === "build" ? "[MODE: build] " : "";
+    sendMessage({ text: modePrefix + text });
   };
 
   return {

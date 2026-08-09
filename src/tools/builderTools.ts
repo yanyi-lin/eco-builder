@@ -58,6 +58,15 @@ export async function searchSpecies(query: string): Promise<{
       return { matches: [], error: `GBIF API error: ${response.status}` };
     }
     const data = await response.json();
+    
+    // 检查匹配结果
+    if (data.matchType === "NONE") {
+      return { 
+        matches: [], 
+        error: `GBIF 未找到 "${query}"。GBIF 不支持中文名，请提供拉丁学名（如 "Vulpes vulpes"）` 
+      };
+    }
+    
     return { matches: [data] };
   } catch (err) {
     return { matches: [], error: `请求失败: ${err}` };
@@ -304,17 +313,17 @@ export function buildModel(
 }
 
 /** 工具执行器 */
-export function executeBuilderTool(
+export async function executeBuilderTool(
   toolName: string,
   args: Record<string, unknown>,
   api: BuilderApi
-): unknown {
+): Promise<unknown> {
   switch (toolName) {
     case "search-species":
-      return searchSpecies(args.query as string);
+      return await searchSpecies(args.query as string);
     
     case "query-interactions":
-      return queryInteractions(
+      return await queryInteractions(
         args.species1 as string,
         args.species2 as string
       );
