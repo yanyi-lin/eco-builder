@@ -16,13 +16,19 @@ const DAILY_TOKEN_LIMIT = 5_000_000;
 /**
  * 生态模拟器 AI 聊天 Agent。
  *
- * 5 个工具均在服务端声明 schema 但不提供 execute —— 由前端 onToolCall 执行，
- * 操作浏览器里的实时模拟状态（P/H/L、暂停、重置等）。
- * autoContinueAfterToolResult=true 自动续轮。
+ * 工具在 Worker 端声明 schema，前端 onToolCall 根据模式执行：
+ * - 模拟模式：read-animal-data, animal-population-set, start, pause, restart
+ * - 构建模式：search-species, query-interactions, add-species, add-relation, get-current-model, build-model, run-model
  */
 const SYSTEM_PROMPT = `你是生态模拟器的 AI 助手。用中文回答，简洁明了。
 
-你可以通过工具控制模拟器。操作后简述结果。`;
+你可以通过工具控制模拟器。操作后简述结果。
+
+当前有两种模式：
+- 模拟模式：控制已有模型的种群数量、启停模拟
+- 构建模式：帮用户构建新的生态模型（搜索物种、定义关系、设置参数）
+
+根据用户意图选择工具。`;
 
 export class EcoChatAgent extends AIChatAgent<Env> {
   async onStart() {
@@ -86,20 +92,16 @@ export class EcoChatAgent extends AIChatAgent<Env> {
     });
 
     const tools: ToolSet = {
+      // === 模拟模式工具 ===
       "read-animal-data": tool({
         description:
           "读取当前模拟器的物种列表、各物种数量、关系与运行状态。调用 animal-population-set 前必须先调用本工具。",
         inputSchema: z.object({}),
-        // 无 execute —— 前端 onToolCall 执行
       }),
       "animal-population-set": tool({
         description:
-          "设置物种数量（仅种群，不含模型参数）。部分更新：可以传入植物(plant)、雪兔(hare)或猞猁(lynx)的数量。未提供的物种保持不变。低于该物种最小阈值会自动 clamp。",
-        inputSchema: z.object({
-          plant: z.number().optional().describe("植物种群的目标数量（可选，不传保持不变）"),
-          hare: z.number().optional().describe("雪兔种群的目标数量（可选，不传保持不变）"),
-          lynx: z.number().optional().describe("猞猁种群的目标数量（可选，不传保持不变）"),
-        }),
+          "设置物种数量（仅种群，不含模型参数）。部分更新：可以传入物种 id 和对应数量。未提供的物种保持不变。低于该物种最小阈值会自动 clamp。",
+        inputSchema: z.object({}).passthrough(),
       }),
       "start": tool({
         description: "启动或继续模拟。",
@@ -112,6 +114,67 @@ export class EcoChatAgent extends AIChatAgent<Env> {
       "restart": tool({
         description: "重置模拟到初始状态。",
         inputSchema: z.object({}),
+      }),
+      
+      // === 构建模式工具 ===
+      "search-species": tool({
+        description: "从 GBIF 搜索物种分类信息。返回物种的拉丁名、分类、匹配置信度等。",
+        inputSchema: z.object({
+          query: z.string().describe("物种名称（中文或拉丁名）"),
+        }),
+      }),
+      "query-interactions": tool({
+        description: "从 GloBI 查询两个物种间的交互关系。返回交互类型（捕食/竞争/互利等）。",
+        inputSchema: z.object({
+          species1: z.string().describe("物种1的拉丁名"),
+          species2: z.string().describe("物种2的拉丁名"),
+        }),
+      }),
+      "add-species": tool({
+        description: "添加一个物种到构建中的模型。",
+        inputSchema: z.object({
+          id: z.string().describe("物种 id（英文，如 'rabbit'）"),
+          name: z.string().describe("显示名（如 '草兔'）"),
+          color: z.string().optional().describe("曲线颜色（如 '#4caf50'）"),
+          initial: z.number().optional().describe("初始种群数量"),
+          hasLogistic: z.boolean().optional().describe("是否有 logistic 自限增长"),
+          growthRate: z.string().optional().describe("增长率参数键（hasLogistic=true 时）"),
+          carryingCapacity: z.string().optional().describe("容纳量参数键（hasLogistic=true 时）"),
+          deathRate: z.string().optional().describe("死亡率参数键"),
+        }),
+      }),
+      "add-relation": tool({
+        description: "添加一个关系到构建中的模型。",
+        inputSchema: z.object({
+          type: z.enum(["predation", "competition", "mutualism"]).describe("关系类型"),
+          prey: z.string().optional().describe("被捕食者 id（predation 时必填）"),
+          predator: z.string().optional().describe("捕食者 id（predation 时必填）"),
+          predationRate: z.string().optional().describe("捕食率参数键"),
+          conversionEfficiency: z.string().optional().describe("转化效率参数键"),
+          predatorDeathRate: z.string().optional().describe("捕食者死亡率参数键"),
+          species1: z.string().optional().describe("物种1 id（competition/mutualism 时必填）"),
+          species2: z.string().optional().describe("物种2 id"),
+          coeff1: z.string().optional().describe("物种1受影响系数"),
+          coeff2: z.string().optional().describe("物种2受影响系数"),
+        }),
+      }),
+      "get-current-model": tool({
+        description: "获取当前构建中的模型状态（物种、关系、参数）。",
+        inputSchema: z.object({}),
+      }),
+      "build-model": tool({
+        description: "构建模型（生成 EcoModelSpec）。",
+        inputSchema: z.object({
+          name: z.string().optional().describe("模型名称"),
+          description: z.string().optional().describe("模型描述"),
+        }),
+      }),
+      "run-model": tool({
+        description: "构建并运行模型（切换到模拟模式）。",
+        inputSchema: z.object({
+          name: z.string().optional().describe("模型名称"),
+          description: z.string().optional().describe("模型描述"),
+        }),
       }),
     };
 

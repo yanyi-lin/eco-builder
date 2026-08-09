@@ -2,20 +2,34 @@ import { useMemo, useState, Suspense } from "react";
 import { getModel, DEFAULT_MODEL_ID } from "./eco/models";
 import { useEcoSimulation } from "./eco/useEcoSimulation";
 import { useEcoChart } from "./eco/useEcoChart";
+import { useEcoBuilder } from "./eco/useEcoBuilder";
 import { ChartPanel } from "./components/ChartPanel";
 import { ModelSelector } from "./components/ModelSelector";
 import { InfoModal } from "./components/InfoModal";
 import { EcoTunerModal } from "./components/EcoTunerModal";
+import { BuilderPanel } from "./components/BuilderPanel";
 import { AgentChatDrawer } from "./components/ai/AgentChatDrawer";
 import { useEcoAgent } from "./components/ai/useEcoAgent";
+import type { EcoModelSpec } from "./eco/types";
 
 export function App() {
+  const [mode, setMode] = useState<"simulate" | "build">("simulate");
   const [modelId, setModelId] = useState(DEFAULT_MODEL_ID);
-  const spec = useMemo(() => getModel(modelId), [modelId]);
+  const [customSpec, setCustomSpec] = useState<EcoModelSpec | null>(null);
+  
+  // 当前使用的 spec：自定义模型优先于预设模型
+  const spec = useMemo(() => {
+    if (mode === "build" && customSpec) return customSpec;
+    return getModel(modelId);
+  }, [mode, customSpec, modelId]);
 
   const sim = useEcoSimulation(spec);
   const chart = useEcoChart(spec);
-  const agent = useEcoAgent(sim);
+  const builder = useEcoBuilder((newSpec) => {
+    setCustomSpec(newSpec);
+    setMode("simulate");
+  });
+  const agent = useEcoAgent(sim, builder, mode);
 
   const [infoOpen, setInfoOpen] = useState(false);
   const [tunerOpen, setTunerOpen] = useState(false);
@@ -23,31 +37,59 @@ export function App() {
 
   const handleModelChange = (id: string) => {
     setModelId(id);
+    setCustomSpec(null);
+  };
+  
+  const handleSwitchToBuild = () => {
+    setMode("build");
+    builder.reset();
+  };
+  
+  const handleSwitchToSimulate = () => {
+    setMode("simulate");
   };
 
   return (
     <div className="app-shell">
       <div className="dashboard">
         <div className="title-row">
-          <h1>植物、雪兔和猞猁种群的周期性波动</h1>
+          <h1>
+            {mode === "build" ? "生态模型构建器" : "植物、雪兔和猞猁种群的周期性波动"}
+          </h1>
           <div className="title-actions">
-            <ModelSelector value={modelId} onChange={handleModelChange} />
+            {mode === "simulate" ? (
+              <>
+                <ModelSelector value={modelId} onChange={handleModelChange} />
+                <button
+                  className="info-btn"
+                  onClick={() => setInfoOpen(true)}
+                  aria-label="模型说明"
+                >
+                  i
+                </button>
+              </>
+            ) : (
+              <span className="mode-badge">构建模式</span>
+            )}
             <button
-              className="info-btn"
-              onClick={() => setInfoOpen(true)}
-              aria-label="模型说明"
+              className="mode-toggle-btn"
+              onClick={mode === "simulate" ? handleSwitchToBuild : handleSwitchToSimulate}
             >
-              i
+              {mode === "simulate" ? "构建新模型" : "返回模拟"}
             </button>
           </div>
         </div>
 
         <div className="main-layout">
-          <ChartPanel
-            sim={sim}
-            chart={chart}
-            onOpenTuner={() => setTunerOpen(true)}
-          />
+          {mode === "build" ? (
+            <BuilderPanel builder={builder} />
+          ) : (
+            <ChartPanel
+              sim={sim}
+              chart={chart}
+              onOpenTuner={() => setTunerOpen(true)}
+            />
+          )}
           <Suspense fallback={<div className="chat-fallback">加载聊天中...</div>}>
             <AgentChatDrawer
               agent={agent}
@@ -58,14 +100,18 @@ export function App() {
         </div>
       </div>
 
-      <InfoModal open={infoOpen} onClose={() => setInfoOpen(false)} />
-      <EcoTunerModal
-        spec={spec}
-        currentParams={sim.params}
-        open={tunerOpen}
-        onClose={() => setTunerOpen(false)}
-        onApply={(p) => sim.applyParams(p)}
-      />
+      {mode === "simulate" && (
+        <>
+          <InfoModal open={infoOpen} onClose={() => setInfoOpen(false)} />
+          <EcoTunerModal
+            spec={spec}
+            currentParams={sim.params}
+            open={tunerOpen}
+            onClose={() => setTunerOpen(false)}
+            onApply={(p) => sim.applyParams(p)}
+          />
+        </>
+      )}
     </div>
   );
 }

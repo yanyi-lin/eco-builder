@@ -3,7 +3,9 @@ import { useAgent } from "agents/react";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import type { UIMessage } from "ai";
 import type { UseEcoSimulation } from "../../eco/useEcoSimulation";
+import type { UseEcoBuilder } from "../../eco/useEcoBuilder";
 import { executeTool, type EcoApi } from "../../tools/ecoTools";
+import { executeBuilderTool, type BuilderApi } from "../../tools/builderTools";
 
 export interface UseEcoAgent {
   messages: UIMessage[];
@@ -14,14 +16,15 @@ export interface UseEcoAgent {
 }
 
 /**
- * 组合 useAgent + useAgentChat，把 5 个生态工具接到浏览器实时状态。
- *
- * 工具执行位置：浏览器（onToolCall），通过 addToolOutput 回传结果，
- * autoContinueAfterToolResult 默认 true 自动续轮。
- *
- * "必须先 Read"：会话级 hasRead ref，set 前置校验。
+ * 组合 useAgent + useAgentChat，根据当前模式分发工具执行。
+ * 模拟模式：执行生态模拟工具（read/set/start/pause/restart）
+ * 构建模式：执行 builder 工具（search-species/query-interactions/add-species 等）
  */
-export function useEcoAgent(sim: UseEcoSimulation): UseEcoAgent {
+export function useEcoAgent(
+  sim: UseEcoSimulation,
+  builder: UseEcoBuilder,
+  mode: "simulate" | "build"
+): UseEcoAgent {
   const sessionId = useMemo(() => {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
       return crypto.randomUUID();
@@ -40,7 +43,13 @@ export function useEcoAgent(sim: UseEcoSimulation): UseEcoAgent {
   const simRef = useRef(sim);
   simRef.current = sim;
 
-  const api: EcoApi = useMemo(
+  const builderRef = useRef(builder);
+  builderRef.current = builder;
+
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
+  const simApi: EcoApi = useMemo(
     () => ({
       get spec() {
         return simRef.current.spec;
@@ -66,6 +75,26 @@ export function useEcoAgent(sim: UseEcoSimulation): UseEcoAgent {
     [],
   );
 
+  const builderApi: BuilderApi = useMemo(
+    () => ({
+      get state() {
+        return builderRef.current.state;
+      },
+      setSpecies: (species) => {
+        builderRef.current.state.species = species;
+      },
+      addSpecies: (species) => builderRef.current.addSpecies(species),
+      removeSpecies: (id) => builderRef.current.removeSpecies(id),
+      addRelation: (relation) => builderRef.current.addRelation(relation),
+      removeRelation: (index) => builderRef.current.removeRelation(index),
+      setParams: (params) => {
+        builderRef.current.state.params = params;
+      },
+      buildAndRun: (name, description) => builderRef.current.buildAndRun(name, description),
+    }),
+    [],
+  );
+
   const { messages, sendMessage, status, isStreaming, clearHistory } =
     useAgentChat({
       agent,
@@ -74,14 +103,21 @@ export function useEcoAgent(sim: UseEcoSimulation): UseEcoAgent {
       autoContinueAfterToolResult: true,
       onToolCall: async ({ toolCall, addToolOutput }) => {
         const toolName = toolCall.toolName;
-        // toolCall.input 由 SDK 提供（类型 unknown），animal-population-set 为对象
         const args =
           (toolCall.input && typeof toolCall.input === "object"
             ? toolCall.input
             : {}) as Record<string, unknown>;
 
         try {
-          const output = executeTool(toolName, args, api);
+          let output: unknown;
+          
+          // 根据模式分发工具执行
+          if (modeRef.current === "build") {
+            output = await executeBuilderTool(toolName, args, builderApi);
+          } else {
+            output = executeTool(toolName, args, simApi);
+          }
+          
           addToolOutput({
             toolCallId: toolCall.toolCallId,
             output: output as Record<string, unknown>,
