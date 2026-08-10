@@ -48,6 +48,30 @@ function buildCacheKey(state: BuilderState, name?: string, description?: string)
   });
 }
 
+/**
+ * 构建或复用模型（带缓存）。
+ * 关键：即使缓存命中，也**必须重新生成 model.id**（uuid）。
+ * 若复用相同 id，React 侧依赖 [spec.id] 的 effect（useEcoSimulation/useEcoChart）
+ * 不会触发 spec 切换重置，导致"新模型参数未生效/仍显示旧模型"。
+ */
+function buildModelCached(
+  state: BuilderState,
+  name?: string,
+  description?: string,
+): EcoModelSpec | null {
+  const cacheKey = buildCacheKey(state, name, description);
+  let model: EcoModelSpec | null = null;
+  if (_buildCache?.key === cacheKey) {
+    model = _buildCache.model;
+  } else {
+    model = buildModel(state, name || "自定义模型", description || "");
+    if (model) _buildCache = { key: cacheKey, model };
+  }
+  if (!model) return null;
+  // 每次调用重新生成唯一 id（缓存只复用数值计算，不复用 id）
+  return { ...model, id: `custom_${crypto.randomUUID?.() ?? Date.now().toString(36)}` };
+}
+
 /** Builder API */
 export interface BuilderApi {
   state: BuilderState;
@@ -707,23 +731,7 @@ export async function executeBuilderTool(
       };
     
     case "build-model": {
-      const cacheKey = buildCacheKey(api.state, args.name as string, args.description as string);
-      let model: EcoModelSpec | null = null;
-      
-      // 检查模块级缓存
-      if (_buildCache?.key === cacheKey) {
-        model = _buildCache.model;
-      } else {
-        model = buildModel(
-          api.state,
-          args.name as string || "自定义模型",
-          args.description as string || ""
-        );
-        if (model) {
-          _buildCache = { key: cacheKey, model };
-        }
-      }
-      
+      const model = buildModelCached(api.state, args.name as string, args.description as string);
       if (!model) return { error: "构建失败：没有物种" };
       return {
         success: true,
@@ -733,23 +741,7 @@ export async function executeBuilderTool(
     }
 
     case "run-model": {
-      const cacheKey = buildCacheKey(api.state, args.name as string, args.description as string);
-      let builtModel: EcoModelSpec | null = null;
-      
-      // 检查模块级缓存，避免 build-model + run-model 重复计算
-      if (_buildCache?.key === cacheKey) {
-        builtModel = _buildCache.model;
-      } else {
-        builtModel = buildModel(
-          api.state,
-          args.name as string || "自定义模型",
-          args.description as string || ""
-        );
-        if (builtModel) {
-          _buildCache = { key: cacheKey, model: builtModel };
-        }
-      }
-      
+      const builtModel = buildModelCached(api.state, args.name as string, args.description as string);
       if (!builtModel) return { error: "构建失败：没有物种" };
       // 结构性必然灭绝：不运行、不切出构建模式，返回中性诊断（不诱导 agent 添加物种）
       if (builtModel.feasibility?.status === "structural-extinction") {
