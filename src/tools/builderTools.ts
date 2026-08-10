@@ -576,9 +576,9 @@ export async function executeBuilderTool(
     
     case "add-species": {
       const id = args.id as string;
-      // 数量上限：限制模型规模，防止 agent 无限扩种（与 design.md 的 Max 5 规则一致）
-      if (api.state.species.length >= 10) {
-        return { error: `模型物种数已达上限（10），不能再添加 ${id}。如需更换物种请先说明并移除现有物种。` };
+      // 数量上限：限制模型规模，防止 agent 无限扩种（与 system prompt 的 Max 5 规则一致）
+      if (api.state.species.length >= 5) {
+        return { error: `模型物种数已达上限（5），不能再添加 ${id}。如需更换物种请先说明并移除现有物种。` };
       }
       // id 校验：ASCII 小写字母开头，仅字母数字下划线（中文/混用大小写会导致关系引用断裂、initKey 碰撞）
       if (!/^[a-z][a-z0-9_]*$/.test(id ?? "")) {

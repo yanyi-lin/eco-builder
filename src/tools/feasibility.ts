@@ -92,12 +92,19 @@ export function ensureFeasible(
           d[r.species1 ?? ""] = (d[r.species1 ?? ""] ?? 0) - a1 * interaction;
           d[r.species2 ?? ""] = (d[r.species2 ?? ""] ?? 0) - a2 * interaction;
         } else if (r.type === "mutualism") {
-          // 互利：species1/species2 相互促进（与 derivatives.ts 一致）
+          // 互利：species1/species2 相互促进（与 derivatives.ts 一致，含饱和项防发散）
           const b1 = p[r.coeff1 ?? ""] ?? 0;
           const b2 = p[r.coeff2 ?? ""] ?? 0;
           const n1 = pops[r.species1 ?? ""] ?? 0;
           const n2 = pops[r.species2 ?? ""] ?? 0;
-          const interaction = n1 * n2;
+          // 饱和项：β·N1·N2/(1 + h·N1·N2)，h 取两物种 K 倒数量级，防双线性发散
+          const s1 = speciesById.get(r.species1 ?? "");
+          const s2 = speciesById.get(r.species2 ?? "");
+          const K1 = s1?.carryingCapacity ? (p[s1.carryingCapacity] ?? 200) : 200;
+          const K2 = s2?.carryingCapacity ? (p[s2.carryingCapacity] ?? 200) : 200;
+          const h = 1 / (K1 * K2);
+          const raw = n1 * n2;
+          const interaction = raw / (1 + h * raw);
           d[r.species1 ?? ""] = (d[r.species1 ?? ""] ?? 0) + b1 * interaction;
           d[r.species2 ?? ""] = (d[r.species2 ?? ""] ?? 0) + b2 * interaction;
         }

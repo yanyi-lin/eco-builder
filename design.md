@@ -232,6 +232,18 @@ npx wrangler deploy         # 部署
 
 未修（改进项，非 bug）：图表双轴压缩（>4 物种同右轴时小物种难读）、InfoModal 为项目级"关于"说明不随模型变。
 
+### 9.4 安全与健壮性审计（2026-08-10，3 subagent 对抗审查）
+
+已修复：
+- **互利关系数值发散**（🔴）：β·N1·N2 双线性无饱和 → 改饱和形式 β·N1·N2/(1+h·N1·N2)，h=1/(K1·K2)。derivatives 与 feasibility 同步。实测 β=0.05 从爆炸改为稳定 ~1244
+- **CORS 反射 Origin**（🔴）：改为域名白名单（workers.dev + localhost:5173），非白名单来源无 CORS 头
+- **安全响应头**（🔴）：X-Content-Type-Options/X-Frame-Options/Referrer-Policy/Permissions-Policy 应用于所有响应
+- **无 Error Boundary**（🔴）：新增顶层 ErrorBoundary，捕获渲染异常防白屏
+- **物种上限不一致**（🟡#22）：prompt Max 5 vs 工具上限 10 → 统一为 5
+
+审查确认的已有防护：API key 无硬编码、DOMPurify 净化 AI 输出、NaN/Infinity 防御、关系去重、GloBI 过滤防扩种。
+记录未修项（见 AUDIT-REPORT.md）：CDN 脚本无 SRI、无速率限制、Euler 步长、per-DO token 限制、npm 依赖漏洞等（低风险或属基础设施范畴）。
+
 ## 10. 待办 / 下一步
 
 - [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）

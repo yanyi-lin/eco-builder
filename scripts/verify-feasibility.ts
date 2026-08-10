@@ -250,5 +250,32 @@ function check(label: string, got: string, expected: string) {
   else { fail++; process.exitCode = 1; console.log(`  FAIL 未耗竭 pc=${pops.pc.toFixed(1)} pa=${pops.pa.toFixed(1)}`); }
 }
 
+// 场景11: 互利关系饱和——大 β 互利不应数值发散（回归：β·N1·N2 双线性曾导致爆炸）
+{
+  const { derivatives } = await import("../src/eco/derivatives");
+  const spec = {
+    species: [
+      { id: "a", minValue: 0.5, hasLogistic: true, growthRate: "r", carryingCapacity: "K" },
+      { id: "b", minValue: 0.5, hasLogistic: true, growthRate: "r", carryingCapacity: "K" },
+    ],
+    relations: [{ type: "mutualism", species1: "a", species2: "b", coeff1: "b1", coeff2: "b2" }],
+  } as any;
+  const params: Record<string, number> = { A0: 50, B0: 50, r: 0.3, K: 200, b1: 0.05, b2: 0.05 };
+  let pops: Record<string, number> = { a: 50, b: 50 };
+  let diverged = false;
+  for (let i = 0; i < 20000; i++) {
+    const d = derivatives(spec, params, pops);
+    for (const s of spec.species) {
+      let v = pops[s.id] + (d[s.id] ?? 0) * 0.045;
+      if (!isFinite(v)) v = s.minValue;
+      if (v < s.minValue) v = s.minValue;
+      pops[s.id] = v;
+    }
+    if (pops.a > 1e9 || pops.b > 1e9) { diverged = true; break; }
+  }
+  if (diverged) { fail++; process.exitCode = 1; console.log("FAIL 互利 β=0.05 发散"); }
+  else { pass++; console.log(`  PASS 互利饱和（β=0.05 → a=${pops.a.toFixed(0)}, b=${pops.b.toFixed(0)}）`); }
+}
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 process.exit(pass > 0 && fail === 0 ? 0 : 1);

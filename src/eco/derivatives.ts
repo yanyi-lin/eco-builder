@@ -80,7 +80,16 @@ export function derivatives(
       const beta2 = params[rel.coeff2 ?? ""] ?? 0;
       const n1 = pops[rel.species1 ?? ""] ?? 0;
       const n2 = pops[rel.species2 ?? ""] ?? 0;
-      const interaction = n1 * n2;
+      // 互利项采用饱和形式 β·N1·N2/(1 + h·N1·N2)（Holling Type II 风格），
+      // 防止双线性正反馈在 β 较大时压倒 logistic 阻尼导致数值发散。
+      // h 取两物种容纳量倒数的量级：当 N 接近 K 时互利率自然饱和，数学上有界。
+      const species1 = spec.species.find((s) => s.id === rel.species1);
+      const species2 = spec.species.find((s) => s.id === rel.species2);
+      const K1 = species1?.carryingCapacity ? (params[species1.carryingCapacity] ?? 200) : 200;
+      const K2 = species2?.carryingCapacity ? (params[species2.carryingCapacity] ?? 200) : 200;
+      const h = 1 / (K1 * K2);
+      const raw = n1 * n2;
+      const interaction = raw / (1 + h * raw);
 
       d[rel.species1 ?? ""] = (d[rel.species1 ?? ""] ?? 0) + beta1 * interaction;
       d[rel.species2 ?? ""] = (d[rel.species2 ?? ""] ?? 0) + beta2 * interaction;
