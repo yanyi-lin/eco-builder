@@ -169,5 +169,29 @@ function check(label: string, got: string, expected: string) {
   else { fail++; process.exitCode = 1; console.log("  FAIL 金字塔不满足（兔 ≤ 狼）"); }
 }
 
+// 场景8: 回归测试——修复 loop 未收敛时不再误报 structural-extinction
+//   之前 bug：grass_K=50（容纳量太小）→ 狼灭绝，但模型有生产者（草），
+//   却被误判 structural 并提示"添加生产者"（诱导 agent 扩种）。
+//   修复后：有可再生来源时返回 adjusted（不诱导加物种）。
+{
+  const species = [
+    makeSpecies("grass", "草", { hasLogistic: true, growthRate: "grass_r", carryingCapacity: "grass_K", initial: 80 }),
+    makeSpecies("rabbit", "兔", { hasLogistic: true, growthRate: "rabbit_r", carryingCapacity: "rabbit_K", initial: 50 }),
+    makeSpecies("wolf", "狼", { hasLogistic: false, initial: 20 }),
+  ];
+  const relations = [
+    { type: "predation", prey: "grass", predator: "rabbit", predationRate: "grass_rabbit_a", conversionEfficiency: "grass_rabbit_e" },
+    { type: "predation", prey: "rabbit", predator: "wolf", predationRate: "rabbit_wolf_a", conversionEfficiency: "rabbit_wolf_e", predatorDeathRate: "rabbit_wolf_m" },
+  ];
+  const params: Record<string, number> = { Grass0: 80, Rabbit0: 50, Wolf0: 20, grass_r: 0.3, grass_K: 50, rabbit_r: 0.3, rabbit_K: 200, grass_rabbit_a: 0.02, grass_rabbit_e: 0.68, rabbit_wolf_a: 0.03, rabbit_wolf_e: 0.68, rabbit_wolf_m: 0.08 };
+  const res = ensureFeasible(species, relations, params);
+  // 有生产者（草有 logistic）但参数修复未收敛 → 不应返回 structural（会诱导加生产者）
+  check("场景8 修复未收敛不误报structural → 非structural", res.status === "structural-extinction" ? "structural-extinction" : "not-structural", "not-structural");
+  // 且 message 不应包含"添加生产者"字样
+  const msg = res.message ?? "";
+  if (msg.includes("添加生产者")) { fail++; process.exitCode = 1; console.log("  FAIL message 仍诱导'添加生产者':", msg); }
+  else { pass++; console.log("  PASS message 无'添加生产者'诱导"); }
+}
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 process.exit(pass > 0 && fail === 0 ? 0 : 1);

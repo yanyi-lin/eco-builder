@@ -106,7 +106,8 @@ export async function searchSpecies(query: string): Promise<{
   }
 }
 
-/** 查询交互关系（GloBI） */
+/** 查询交互关系（GloBI）。只返回涉及查询两物种的记录，过滤第三方物种，
+ *  避免把 GloBI 返回的其他物种（如狼的其他猎物）呈献给 agent 导致其主动扩种。 */
 export async function queryInteractions(
   species1: string,
   species2: string
@@ -123,11 +124,25 @@ export async function queryInteractions(
     }
     const data = await response.json();
     
-    const interactions: GlobiInteraction[] = data.data?.map((row: string[]) => ({
+    const allInteractions: GlobiInteraction[] = data.data?.map((row: string[]) => ({
       sourceTaxonName: row[data.columns.indexOf("source_taxon_name")] || "",
       targetTaxonName: row[data.columns.indexOf("target_taxon_name")] || "",
       interactionType: row[data.columns.indexOf("interaction_type")] || "",
     })) || [];
+    
+    // 关键过滤：仅保留 source/target 都是查询两物种的记录，
+    // 排除 GloBI 返回中涉及第三方物种（如狼的其他猎物、其他捕食者）的记录。
+    const a = species1.toLowerCase();
+    const b = species2.toLowerCase();
+    const interactions = allInteractions.filter((it) => {
+      const s = it.sourceTaxonName.toLowerCase();
+      const t = it.targetTaxonName.toLowerCase();
+      // 两端任一与查询物种匹配即可（GloBI 字段方向可能是 source=猎物/target=捕食者）
+      const sIsAB = s.includes(a) || s.includes(b);
+      const tIsAB = t.includes(a) || t.includes(b);
+      // 必须一端是查询物种 A、另一端是查询物种 B（允许字段方向互换）
+      return (sIsAB && tIsAB);
+    });
     
     return { interactions };
   } catch (err) {
@@ -542,6 +557,10 @@ export async function executeBuilderTool(
     
     case "add-species": {
       const id = args.id as string;
+      // 数量上限：限制模型规模，防止 agent 无限扩种（与 design.md 的 Max 5 规则一致）
+      if (api.state.species.length >= 10) {
+        return { error: `模型物种数已达上限（10），不能再添加 ${id}。如需更换物种请先说明并移除现有物种。` };
+      }
       // id 校验：ASCII 小写字母开头，仅字母数字下划线（中文/混用大小写会导致关系引用断裂、initKey 碰撞）
       if (!/^[a-z][a-z0-9_]*$/.test(id ?? "")) {
         return { error: `物种 id "${id}" 非法：必须是小写英文开头（如 grass/rabbit/fox），仅含字母数字下划线` };
@@ -670,11 +689,11 @@ export async function executeBuilderTool(
         args.description as string || ""
       );
       if (!builtModel) return { error: "构建失败：没有物种" };
-      // 结构性必然灭绝：不运行、不切出构建模式，返回诊断让 LLM 引导学生修改结构
+      // 结构性必然灭绝：不运行、不切出构建模式，返回中性诊断（不诱导 agent 添加物种）
       if (builtModel.feasibility?.status === "structural-extinction") {
         return {
           success: false,
-          error: `模型存在结构性必然灭绝问题：${builtModel.feasibility.message} 模型未运行。请先调整模型结构（如添加生产者/可再生资源物种），再重新调用 run-model。`,
+          error: `模型存在结构性必然灭绝问题：${builtModel.feasibility.message} 模型未运行。`,
           feasibility: builtModel.feasibility,
           currentSpecies: api.state.species.map((s) => ({ id: s.id, name: s.name, hasLogistic: s.hasLogistic })),
           currentRelations: api.state.relations.map((r) => ({

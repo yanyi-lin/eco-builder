@@ -250,7 +250,7 @@ export function ensureFeasible(
           status: "structural-extinction",
           params: work,
           message: adjusted
-            ? `已尝试自动调参仍无法避免 ${names.join("、")} 灭绝：该物种无可再生的能量来源（类似鲸落/一次性资源），参数无法修复，可能需要调整模型结构（如添加生产者）。`
+            ? `已尝试自动调参仍无法避免 ${names.join("、")} 灭绝：该物种无可再生的能量来源（类似鲸落/一次性资源）。`
             : `物种 ${names.join("、")} 必然灭绝：系统中不存在可再生的能量来源（无生产者/自增长物种），这是一次性资源系统（类似鲸落），属生态学必然结局，未自动调整参数。`,
           extinctSpecies: result.extinct,
         };
@@ -261,13 +261,25 @@ export function ensureFeasible(
       adjusted = true;
       result = simulate(work);
     }
-    // 阶段1 耗尽仍灭绝 → 结构性（无法通过参数修复）
+    // 阶段1 耗尽仍灭绝：
+    // - 若灭绝物种仍有可再生来源（参数问题但修复未收敛）→ 返回 adjusted，如实说明，
+    //   绝不建议"添加生产者"（会诱导 agent 扩种；病因在参数而非缺生产者）。
+    // - 若灭绝物种确实无可再生来源（真鲸落，已被上方 classifyExtinction 拦截）→ 不会走到这。
     if (!stage1Ok && result.extinct.length > 0) {
       const names = result.extinct.map((id) => speciesById.get(id)?.name ?? id);
+      const stillStructural = classifyExtinction(result.extinct) === "structural";
+      if (stillStructural) {
+        return {
+          status: "structural-extinction",
+          params: work,
+          message: `物种 ${names.join("、")} 无可再生的能量来源（类似鲸落/一次性资源），系统在能量供给上无法持续，属生态学必然结局。`,
+          extinctSpecies: result.extinct,
+        };
+      }
       return {
-        status: "structural-extinction",
+        status: "adjusted",
         params: work,
-        message: `已尝试自动调参（捕食率降至下限 ${MIN_PREDATION}、增长率升至上限）仍无法避免 ${names.join("、")} 灭绝，模型结构可能需要调整（如添加生产者）。`,
+        message: `已自动调整参数（捕食率/增长率/死亡率等）但 ${names.join("、")} 在数值上仍难以维持，系统可能表现为数量长期低迷或周期性波动。`,
         extinctSpecies: result.extinct,
       };
     }

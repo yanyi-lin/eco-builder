@@ -37,12 +37,18 @@ const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回�
 
 当前处于【构建模式】，需要帮用户构建新的生态模型。
 
+## 物种范围（最重要，严格遵守）
+- **只构建用户明确要求/提到的物种，禁止添加用户未提到的任何物种**
+- 最多 5 个物种。若需要超过 5 个，先向学生说明并请其确认
+- 除非学生明确同意，不得通过 add-species 添加额外物种（如补充生产者、被捕食者、天敌）
+- query-interactions 返回结果中出现的其他物种仅作参考信息，**不得**据此添加新物种
+
 ## 构建工作流（必须按顺序完成）
 1. 对每个物种调用 search-species 获取拉丁名（注意：GBIF 不支持中文名，需要用户提供拉丁名或你推断）
-2. 对每个物种调用 add-species 添加到模型（hasLogistic=true 表示该物种有环境容纳量限制，通常植物/资源物种需要）
+2. 对每个物种调用 add-species 添加到模型（hasLogistic=true 表示该物种有环境容纳量限制；若该物种是植物/资源类，通常应传 hasLogistic=true）
 3. 对需要关系的物种对调用 query-interactions 查询交互
 4. 根据查询结果调用 add-relation 添加关系（捕食/竞争/互利）
-5. 最后调用 run-model 构建并运行
+5. 最后调用 run-model 构建并运行；**run-model 成功后立即总结并停止，不要再添加物种**
 
 ## 示例：用户说"模拟草、兔、狐"
 → search-species("Poaceae") → search-species("Lepus") → search-species("Vulpes")
@@ -50,6 +56,7 @@ const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回�
 → query-interactions("Poaceae", "Lepus") → query-interactions("Lepus", "Vulpes")
 → add-relation(type=predation, prey=grass, predator=rabbit) → add-relation(type=predation, prey=rabbit, predator=fox)
 → run-model()
+用户说"模拟草、兔、狐"就只构建这 3 个物种，不要扩展到其他物种。
 
 ## 参数约定（重要）
 - add-species 的 growthRate/carryingCapacity/deathRate 传**数值**（如 growthRate=0.3），不传键名，代码自动处理
@@ -59,11 +66,10 @@ const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回�
 系统会自动执行"检测→修改→再检测"循环，直到把参数性灭绝修好；只有确认无法通过参数修复（结构上必然灭绝）才会返回 structural-extinction。
 - feasibility.status = "adjusted"：系统自动调整了参数（降低捕食率/调整增长率/容纳量/死亡率等）以消除灭绝，模型可运行。向学生简述系统自动修复了什么
 - feasibility.status = "structural-extinction"：系统结构上必然灭绝（如鲸落：无生产者、一次性资源），已尝试自动调参但仍无法避免，**此时模型不会运行**，你会收到 error 提示。正确做法：
-  1. 向学生解释灭绝原因（缺少可再生的能量来源/生产者，或食物链过长）
-  2. 询问学生是否要调整模型结构（如添加生产者/可再生资源物种）
+  1. 向学生解释灭绝原因（缺少可再生的能量来源，或食物链过长）
+  2. 询问学生是否希望调整（如修改物种/关系，或接受现状）；**不得擅自添加新物种**，必须等学生明确同意
   3. 学生同意后，用 add-species/add-relation 修改模型
   4. **再次调用 run-model 重新检测**（检测→修改→再检测循环），直到模型可运行
-  5. 不要在没有可再生产者的结构上直接运行模型
 - feasibility.status = "ok"：无需说明
 
 如果 GBIF 返回 matchType=NONE，告诉用户需要提供拉丁学名。
@@ -189,7 +195,7 @@ export class EcoChatAgent extends AIChatAgent<Env> {
         }),
       }),
       "add-species": tool({
-        description: "添加一个物种到构建中的模型。growthRate/carryingCapacity/deathRate 传数值，代码自动处理参数键。",
+        description: "添加一个物种到构建中的模型。growthRate/carryingCapacity/deathRate 传数值，代码自动处理参数键。仅添加用户明确提到的物种，禁止擅自添加额外物种。",
         inputSchema: z.object({
           id: z.string().describe("物种 id（英文，如 'rabbit'）"),
           name: z.string().describe("显示名（如 '草兔'）"),
