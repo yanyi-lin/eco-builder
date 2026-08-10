@@ -186,10 +186,33 @@ npx wrangler deploy         # 部署
 
 或 Cloudflare Dashboard → Workers → 连接 GitHub repo（Workers Builds）自动部署。
 
-## 9. 待办 / 下一步
+## 9. 模型可行性校验与灭绝分类（已实现）
 
-- [ ] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）
-- [ ] Phase 2b：EcoChatAgent System Prompt 更新（builder 模式）
-- [ ] Phase 2c：UI 模式切换（模拟模式 ↔ 构建模式）
+### 9.1 流程
+
+构建模型后（buildModel 内部），`ensureFeasible` 自动执行：
+
+1. **测试运行**：快速模拟 4000 步（≈180 时间单位，覆盖 10+ 振荡周期），检测是否有物种触底（≤ minValue）
+2. **灭绝原因分类**（第一性原理，沿食物链追索能量来源）：
+   - **结构性必然灭绝**（`structural-extinction`）：灭绝物种及其捕食链**无任何可再生能量来源**（无 logistic 生产者）——如鲸落（一次性资源）、无生产者的纯捕食链。**不调参**，返回诊断信息
+   - **参数性可修复**（`adjusted`）：有能量来源但参数极端（捕食率过高/死亡率过高/转化率过低）——**自动调参**：逐步降捕食率（×0.7，下限 0.002）+ 提升生产者增长率（×1.3，上限 0.6）
+3. **结果状态**（写入 `EcoModelSpec.feasibility`，LLM 可读）：
+   - `ok`：系统稳定，无需处理
+   - `adjusted`：已自动调参，LLM 向学生简述调整内容
+   - `structural-extinction`：必然灭绝，LLM 向学生解释这是真实生态现象（如鲸落），并询问是否调整模型结构（如添加生产者）；**模型仍运行**，让学生观察灭绝过程（教学价值）
+
+### 9.2 决策记录
+
+- 结构性灭绝模型**仍运行**（不阻断），让灭绝过程本身成为教学点
+- 参数性灭绝**自动修复**（学生无感，LLM 简述）
+- 调参 6 轮后仍灭绝（如捕食链过长无解）→ 返回 `adjusted` + 说明，参数取调参后值
+
+## 10. 待办 / 下一步
+
+- [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）
+- [x] Phase 2b：EcoChatAgent System Prompt 更新（builder 模式）
+- [x] Phase 2c：UI 模式切换（模拟模式 ↔ 构建模式）
+- [x] 模型可行性校验与灭绝分类（9 节）
 - [ ] 数据源 API 经 Worker 代理（解决 CORS + 统一回退逻辑）
 - [ ] 教学 skills（后续功能）
+- [ ] **尚未构建的可选功能**：BuilderPanel / 页面上展示"模型可行性"状态提示（目前诊断仅通过 LLM 对话转述；若需要可视化状态徽章/弹窗，需新增 UI 组件）

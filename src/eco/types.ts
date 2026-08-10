@@ -103,6 +103,12 @@ export interface EcoModelSpec {
   paramMeta: Record<string, ParamMeta>;
   /** 积分步长 */
   dt: number;
+  /** 构建时可行性诊断（自定义模型专用；可选，模拟模式模型无此字段） */
+  feasibility?: {
+    status: "ok" | "adjusted" | "structural-extinction";
+    message: string;
+    extinctSpecies?: string[];
+  };
   /** 双 Y 轴范围 */
   axisRanges: {
     left: AxisRange;
