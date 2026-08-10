@@ -120,12 +120,12 @@ export function ensureFeasible(
   // 然后重新检测；若仍未稳定，继续逐轮增强力度，直到修好或确认无法修复。
   const applyFixes = (work: Record<string, number>, extinctIds: string[]): boolean => {
     let changed = false;
-    // 收集"营养级"信息：谁是捕食者（无 logistic 或有猎物）、谁是纯生产者
-    const consumedIds = new Set<string>();
+    // 营养级分类：真正的"消费者"是出现在捕食关系 predator 位置的物种
+    // （它们靠吃别人获取能量）；纯生产者 = hasLogistic 且从未作为 predator。
+    // 注意：被捕食者（prey）不是消费者，它们是食物链基底或中间层，不能因被吃而压低其增长。
     const predatorIds = new Set<string>();
     for (const r of relations) {
       if (r.type !== "predation") continue;
-      if (r.prey) consumedIds.add(r.prey);
       if (r.predator) predatorIds.add(r.predator);
     }
     // 灭绝物种中若有"纯生产者被吃光"或"消费者灭绝" → 需要系统性降捕食率
@@ -145,9 +145,10 @@ export function ensureFeasible(
     // 系统性调整所有 logistic 物种的增长/容纳量：稳定域策略
     for (const s of species) {
       if (!s.hasLogistic || !s.growthRate || !s.carryingCapacity) continue;
-      const isConsumer = predatorIds.has(s.id) || consumedIds.has(s.id);
+      const isConsumer = predatorIds.has(s.id);
       if (isConsumer) {
-        // 消费者（中间营养级）：增长率压低到 0.15-0.25，容纳量压低到 150-250
+        // 消费者（中间营养级/顶级捕食者的可再生产部分）：增长率/容纳量压低到中等，
+        // 避免种群爆炸压死基底
         if (work[s.growthRate] !== undefined && work[s.growthRate] > 0.25) {
           work[s.growthRate] = 0.25;
           changed = true;
@@ -157,7 +158,7 @@ export function ensureFeasible(
           changed = true;
         }
       } else {
-        // 纯生产者（基底）：增长率提高，容纳量保持中等
+        // 纯生产者（基底）：增长率提高，容纳量保持（不压低，避免基底更容易灭绝）
         if (work[s.growthRate] !== undefined && work[s.growthRate] < 0.6) {
           work[s.growthRate] = Math.min(work[s.growthRate] * 1.4, 0.8);
           changed = true;

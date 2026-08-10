@@ -93,5 +93,32 @@ function check(label: string, got: string, expected: string) {
   check("场景5 兔子死亡灭绝 → adjusted", res.status, "adjusted");
 }
 
+// 场景6: 用户实测模型（草500/兔50/狼10, K 1000/200/50, r 0.5/0.3/0.2）
+//   早期 bug：基底"草"被误判为消费者导致 K 被压低到 250、r 被压到 0.25 → 草更易灭绝 → 误报 structural
+//   修复后：草_K 保持、草_r 提升、兔被压、捕食率降低 → adjusted
+{
+  const species = [
+    makeSpecies("grass", "草", { hasLogistic: true, growthRate: "grass_r", carryingCapacity: "grass_K", initial: 500 }),
+    makeSpecies("rabbit", "兔", { hasLogistic: true, growthRate: "rabbit_r", carryingCapacity: "rabbit_K", initial: 50 }),
+    makeSpecies("wolf", "狼", { hasLogistic: false, initial: 10 }),
+  ];
+  const relations = [
+    { type: "predation", prey: "grass", predator: "rabbit", predationRate: "grass_rabbit_a", conversionEfficiency: "grass_rabbit_e" },
+    { type: "predation", prey: "rabbit", predator: "wolf", predationRate: "rabbit_wolf_a", conversionEfficiency: "rabbit_wolf_e", predatorDeathRate: "rabbit_wolf_m" },
+  ];
+  const params: Record<string, number> = { Grass0: 500, Rabbit0: 50, Wolf0: 10, grass_r: 0.5, grass_K: 1000, rabbit_r: 0.3, rabbit_K: 200, grass_rabbit_a: 0.008, grass_rabbit_e: 0.68, rabbit_wolf_a: 0.008, rabbit_wolf_e: 0.68, rabbit_wolf_m: 0.08 };
+  const res = ensureFeasible(species, relations, params);
+  check("场景6 用户实测草兔狼(500/50/10) → adjusted", res.status, "adjusted");
+  // 验证基底草未被误压：K 保持 ≥ 500，增长率应提升
+  if (res.status === "adjusted") {
+    const grassKOk = (res.params.grass_K ?? 0) >= 500;
+    const grassROk = (res.params.grass_r ?? 0) >= 0.6;
+    const rabbitCapOk = (res.params.rabbit_K ?? 0) <= 250;
+    console.log(`  [基底草修复检查] grass_K=${res.params.grass_K} grass_r=${res.params.grass_r} rabbit_K=${res.params.rabbit_K}`);
+    if (!grassKOk || !grassROk || !rabbitCapOk) { fail++; process.exitCode = 1; console.log("  FAIL 基底/消费者修复方向错误"); }
+    else { pass++; console.log("  PASS 修复方向正确（基底增强、消费者压制）"); }
+  }
+}
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 process.exit(pass > 0 && fail === 0 ? 0 : 1);
