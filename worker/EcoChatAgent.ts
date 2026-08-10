@@ -57,7 +57,12 @@ const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回�
 
 ## 模型可行性诊断（run-model 返回 feasibility 字段时）
 - feasibility.status = "adjusted"：系统自动调整了参数（捕食率/增长率），向学生简述调整内容
-- feasibility.status = "structural-extinction"：系统结构上必然灭绝（如鲸落：无生产者、一次性资源），**这是真实的生态学现象，不要自动修改**。向学生解释原因，并询问是否要调整模型结构（如添加生产者）
+- feasibility.status = "structural-extinction"：系统结构上必然灭绝（如鲸落：无生产者、一次性资源），这是真实的生态学现象。**此时模型不会运行**，你会收到 error 提示。正确做法：
+  1. 向学生解释灭绝原因（缺少可再生的能量来源/生产者）
+  2. 询问学生是否要调整模型结构（如添加生产者/可再生资源物种）
+  3. 学生同意后，用 add-species/add-relation 修改模型
+  4. **再次调用 run-model 重新检测**（检测→修改→再检测循环），直到模型可运行
+  5. 不要在没有可再生产者的结构上直接运行模型
 - feasibility.status = "ok"：无需说明
 
 如果 GBIF 返回 matchType=NONE，告诉用户需要提供拉丁学名。

@@ -811,15 +811,29 @@ export async function executeBuilderTool(
         args.name as string || "自定义模型",
         args.description as string || ""
       );
-      if (builtModel) {
-        api.buildAndRun(builtModel);
+      if (!builtModel) return { error: "构建失败：没有物种" };
+      // 结构性必然灭绝：不运行、不切出构建模式，返回诊断让 LLM 引导学生修改结构
+      if (builtModel.feasibility?.status === "structural-extinction") {
         return {
-          success: true,
-          modelId: builtModel.id,
+          success: false,
+          error: `模型存在结构性必然灭绝问题：${builtModel.feasibility.message} 模型未运行。请先调整模型结构（如添加生产者/可再生资源物种），再重新调用 run-model。`,
           feasibility: builtModel.feasibility,
+          currentSpecies: api.state.species.map((s) => ({ id: s.id, name: s.name, hasLogistic: s.hasLogistic })),
+          currentRelations: api.state.relations.map((r) => ({
+            type: r.type,
+            prey: r.prey,
+            predator: r.predator,
+            species1: r.species1,
+            species2: r.species2,
+          })),
         };
       }
-      return { error: "构建失败：没有物种" };
+      api.buildAndRun(builtModel);
+      return {
+        success: true,
+        modelId: builtModel.id,
+        feasibility: builtModel.feasibility,
+      };
     
     default:
       return { error: `未知工具: ${toolName}` };
