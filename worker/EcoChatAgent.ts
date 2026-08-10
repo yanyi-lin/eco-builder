@@ -39,17 +39,21 @@ const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回�
 
 ## 构建工作流（必须按顺序完成）
 1. 对每个物种调用 search-species 获取拉丁名（注意：GBIF 不支持中文名，需要用户提供拉丁名或你推断）
-2. 对每个物种调用 add-species 添加到模型
+2. 对每个物种调用 add-species 添加到模型（hasLogistic=true 表示该物种有环境容纳量限制，通常植物/资源物种需要）
 3. 对需要关系的物种对调用 query-interactions 查询交互
 4. 根据查询结果调用 add-relation 添加关系（捕食/竞争/互利）
 5. 最后调用 run-model 构建并运行
 
 ## 示例：用户说"模拟草、兔、狐"
 → search-species("Poaceae") → search-species("Lepus") → search-species("Vulpes")
-→ add-species(grass, hasLogistic=true) → add-species(rabbit) → add-species(fox)
+→ add-species(id=grass, name=草, hasLogistic=true) → add-species(id=rabbit, name=兔, deathRate=0.2) → add-species(id=fox, name=狐, deathRate=0.1)
 → query-interactions("Poaceae", "Lepus") → query-interactions("Lepus", "Vulpes")
-→ add-relation(predation, grass, rabbit) → add-relation(predation, rabbit, fox)
+→ add-relation(type=predation, prey=grass, predator=rabbit) → add-relation(type=predation, prey=rabbit, predator=fox)
 → run-model()
+
+## 参数约定（重要）
+- add-species 的 growthRate/carryingCapacity/deathRate 传**数值**（如 growthRate=0.3），不传键名，代码自动处理
+- add-relation 只需传 type/prey/predator（或 species1/species2），捕食率等系数代码自动生成，无需传
 
 如果 GBIF 返回 matchType=NONE，告诉用户需要提供拉丁学名。
 
@@ -174,31 +178,26 @@ export class EcoChatAgent extends AIChatAgent<Env> {
         }),
       }),
       "add-species": tool({
-        description: "添加一个物种到构建中的模型。",
+        description: "添加一个物种到构建中的模型。growthRate/carryingCapacity/deathRate 传数值，代码自动处理参数键。",
         inputSchema: z.object({
           id: z.string().describe("物种 id（英文，如 'rabbit'）"),
           name: z.string().describe("显示名（如 '草兔'）"),
-          color: z.string().optional().describe("曲线颜色（如 '#4caf50'）"),
+          color: z.string().optional().describe("曲线颜色（可选，如 '#4caf50'）"),
           initial: z.number().optional().describe("初始种群数量"),
-          hasLogistic: z.boolean().optional().describe("是否有 logistic 自限增长"),
-          growthRate: z.string().optional().describe("增长率参数键（hasLogistic=true 时）"),
-          carryingCapacity: z.string().optional().describe("容纳量参数键（hasLogistic=true 时）"),
-          deathRate: z.string().optional().describe("死亡率参数键"),
+          hasLogistic: z.boolean().optional().describe("是否有环境容纳量限制（植物/资源物种为 true）"),
+          growthRate: z.number().optional().describe("增长率 r（数值，如 0.3）"),
+          carryingCapacity: z.number().optional().describe("环境容纳量 K（数值，如 200）"),
+          deathRate: z.number().optional().describe("自然死亡率（数值，如 0.15）"),
         }),
       }),
       "add-relation": tool({
-        description: "添加一个关系到构建中的模型。",
+        description: "添加一个关系到构建中的模型。只需传 type 和物种，捕食率等系数自动生成。",
         inputSchema: z.object({
           type: z.enum(["predation", "competition", "mutualism"]).describe("关系类型"),
           prey: z.string().optional().describe("被捕食者 id（predation 时必填）"),
           predator: z.string().optional().describe("捕食者 id（predation 时必填）"),
-          predationRate: z.string().optional().describe("捕食率参数键"),
-          conversionEfficiency: z.string().optional().describe("转化效率参数键"),
-          predatorDeathRate: z.string().optional().describe("捕食者死亡率参数键"),
           species1: z.string().optional().describe("物种1 id（competition/mutualism 时必填）"),
           species2: z.string().optional().describe("物种2 id"),
-          coeff1: z.string().optional().describe("物种1受影响系数"),
-          coeff2: z.string().optional().describe("物种2受影响系数"),
         }),
       }),
       "get-current-model": tool({

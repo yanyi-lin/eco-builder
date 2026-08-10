@@ -101,6 +101,8 @@ export function useEcoSimulation(spec: EcoModelSpec): UseEcoSimulation {
       const next: Populations = { ...cur.populations };
       for (const s of spec.species) {
         let v = (cur.populations[s.id] ?? 0) + (d[s.id] ?? 0) * dt;
+        // 防御：NaN/Infinity 时回退到最小阈值（参数缺失等异常不会传播）
+        if (!isFinite(v)) v = s.minValue;
         // 下限：最小阈值
         if (v < s.minValue) v = s.minValue;
         // 上限：logistic 物种不超过 K * maxCapacityRatio（原版 plant 行为）

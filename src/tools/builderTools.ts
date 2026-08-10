@@ -45,6 +45,32 @@ export interface BuilderApi {
   buildAndRun: (spec: EcoModelSpec) => void;
 }
 
+/** 自动生成的物种参数键（避免 LLM 提供键名导致冲突/缺失 → NaN） */
+export interface AutoKeys {
+  growthRate?: string;
+  carryingCapacity?: string;
+  deathRate?: string;
+}
+
+/** 物种调色板（按添加顺序分配，避免同色曲线重叠看似一条） */
+const SPECIES_COLORS = [
+  "#4caf50", "#1e88e5", "#e53935", "#fb8c00",
+  "#8e24aa", "#00897b", "#5e35b1", "#c0ca33",
+];
+
+/** 生成物种唯一参数键：<id>_r / <id>_K / <id>_d */
+export function autoSpeciesKeys(
+  id: string,
+  hasLogistic: boolean,
+  hasDeathRate: boolean,
+): AutoKeys {
+  return {
+    growthRate: hasLogistic ? `${id}_r` : undefined,
+    carryingCapacity: hasLogistic ? `${id}_K` : undefined,
+    deathRate: hasDeathRate ? `${id}_d` : undefined,
+  };
+}
+
 /** 搜索物种（GBIF） */
 export async function searchSpecies(query: string): Promise<{
   matches: GbifMatch[];
@@ -116,7 +142,8 @@ export function inferDefaultParams(species: SpeciesDef[]): {
     if (sp.hasLogistic && sp.growthRate && sp.carryingCapacity) {
       params[sp.growthRate] = 0.3;
       params[sp.carryingCapacity] = 200;
-      params[initKey] = 150;
+      // 若未设置初始值，默认 150
+      if (!(initKey in params)) params[initKey] = 150;
       
       paramMeta[sp.growthRate] = {
         label: `${sp.growthRate} (${sp.name}增长率)`,
@@ -158,7 +185,7 @@ export function inferDefaultParams(species: SpeciesDef[]): {
     }
     
     if (!sp.hasLogistic && !sp.deathRate) {
-      params[initKey] = 30;
+      if (!(initKey in params)) params[initKey] = 30;
       paramMeta[initKey] = {
         label: `${initKey} (${sp.name}初始)`,
         group: "initial",
@@ -184,88 +211,104 @@ export function inferDefaultParams(species: SpeciesDef[]): {
   return { params, paramMeta };
 }
 
-/** 为关系添加参数 */
+/** 为关系添加参数（自动生成唯一参数键，避免 LLM 传键名冲突） */
 export function addRelationParams(
   relation: RelationDef,
   params: Record<string, number>,
   paramMeta: Record<string, ParamMeta>,
   speciesNames: Record<string, string>
 ): void {
-  if (relation.type === "predation" && relation.predationRate && relation.conversionEfficiency) {
-    params[relation.predationRate] = 0.01;
-    params[relation.conversionEfficiency] = 0.6;
-    
-    const preyName = speciesNames[relation.prey!] || relation.prey;
-    const predatorName = speciesNames[relation.predator!] || relation.predator;
-    
-    paramMeta[relation.predationRate] = {
-      label: `${relation.predationRate} (${predatorName}捕食${preyName}率)`,
+  if (relation.type === "predation") {
+    const prey = relation.prey ?? "prey";
+    const predator = relation.predator ?? "predator";
+    // 自动生成捕食参数键：<prey>_<pred>_a / _e / _m
+    const predationRate = relation.predationRate ?? `${prey}_${predator}_a`;
+    const conversionEfficiency = relation.conversionEfficiency ?? `${prey}_${predator}_e`;
+    const predatorDeathRate = relation.predatorDeathRate ?? `${predator}_m`;
+
+    params[predationRate] = params[predationRate] ?? 0.01;
+    params[conversionEfficiency] = params[conversionEfficiency] ?? 0.6;
+    params[predatorDeathRate] = params[predatorDeathRate] ?? 0.1;
+
+    const preyName = speciesNames[prey] || prey;
+    const predatorName = speciesNames[predator] || predator;
+
+    paramMeta[predationRate] = {
+      label: `${predatorName}捕食${preyName}率`,
       group: "dynamic",
       min: 0.001,
       max: 0.05,
       step: 0.001,
       digits: 4,
     };
-    paramMeta[relation.conversionEfficiency] = {
-      label: `${relation.conversionEfficiency} (${preyName}→${predatorName}转化)`,
+    paramMeta[conversionEfficiency] = {
+      label: `${preyName}→${predatorName}转化`,
       group: "dynamic",
       min: 0.1,
       max: 0.9,
       step: 0.05,
       digits: 3,
     };
-    
-    if (relation.predatorDeathRate) {
-      params[relation.predatorDeathRate] = 0.1;
-      paramMeta[relation.predatorDeathRate] = {
-        label: `${relation.predatorDeathRate} (${predatorName}死亡率)`,
-        group: "dynamic",
-        min: 0.05,
-        max: 0.3,
-        step: 0.01,
-        digits: 3,
-      };
-    }
-  } else if (relation.type === "competition" && relation.coeff1 && relation.coeff2) {
-    params[relation.coeff1] = 0.005;
-    params[relation.coeff2] = 0.005;
-    
-    const sp1Name = speciesNames[relation.species1!] || relation.species1;
-    const sp2Name = speciesNames[relation.species2!] || relation.species2;
-    
-    paramMeta[relation.coeff1] = {
-      label: `${relation.coeff1} (${sp1Name}竞争系数)`,
+    paramMeta[predatorDeathRate] = {
+      label: `${predatorName}死亡率`,
+      group: "dynamic",
+      min: 0.05,
+      max: 0.3,
+      step: 0.01,
+      digits: 3,
+    };
+  } else if (relation.type === "competition") {
+    const sp1 = relation.species1 ?? "sp1";
+    const sp2 = relation.species2 ?? "sp2";
+    // 自动生成竞争参数键：<sp1>_<sp2>_c1 / _c2
+    const coeff1 = relation.coeff1 ?? `${sp1}_${sp2}_c1`;
+    const coeff2 = relation.coeff2 ?? `${sp1}_${sp2}_c2`;
+
+    params[coeff1] = params[coeff1] ?? 0.005;
+    params[coeff2] = params[coeff2] ?? 0.005;
+
+    const sp1Name = speciesNames[sp1] || sp1;
+    const sp2Name = speciesNames[sp2] || sp2;
+
+    paramMeta[coeff1] = {
+      label: `${sp1Name}竞争系数`,
       group: "dynamic",
       min: 0.001,
       max: 0.02,
       step: 0.001,
       digits: 4,
     };
-    paramMeta[relation.coeff2] = {
-      label: `${relation.coeff2} (${sp2Name}竞争系数)`,
+    paramMeta[coeff2] = {
+      label: `${sp2Name}竞争系数`,
       group: "dynamic",
       min: 0.001,
       max: 0.02,
       step: 0.001,
       digits: 4,
     };
-  } else if (relation.type === "mutualism" && relation.coeff1 && relation.coeff2) {
-    params[relation.coeff1] = 0.003;
-    params[relation.coeff2] = 0.003;
-    
-    const sp1Name = speciesNames[relation.species1!] || relation.species1;
-    const sp2Name = speciesNames[relation.species2!] || relation.species2;
-    
-    paramMeta[relation.coeff1] = {
-      label: `${relation.coeff1} (${sp1Name}互利系数)`,
+  } else if (relation.type === "mutualism") {
+    const sp1 = relation.species1 ?? "sp1";
+    const sp2 = relation.species2 ?? "sp2";
+    // 自动生成互利参数键：<sp1>_<sp2>_m1 / _m2
+    const coeff1 = relation.coeff1 ?? `${sp1}_${sp2}_m1`;
+    const coeff2 = relation.coeff2 ?? `${sp1}_${sp2}_m2`;
+
+    params[coeff1] = params[coeff1] ?? 0.003;
+    params[coeff2] = params[coeff2] ?? 0.003;
+
+    const sp1Name = speciesNames[sp1] || sp1;
+    const sp2Name = speciesNames[sp2] || sp2;
+
+    paramMeta[coeff1] = {
+      label: `${sp1Name}互利系数`,
       group: "dynamic",
       min: 0.001,
       max: 0.01,
       step: 0.001,
       digits: 4,
     };
-    paramMeta[relation.coeff2] = {
-      label: `${relation.coeff2} (${sp2Name}互利系数)`,
+    paramMeta[coeff2] = {
+      label: `${sp2Name}互利系数`,
       group: "dynamic",
       min: 0.001,
       max: 0.01,
@@ -295,6 +338,13 @@ export function buildModel(
     ...sp,
     axis: (i === 0 ? "left" : "right") as "left" | "right",
   }));
+
+  // 根据初始值/容纳量动态计算 Y 轴范围（避免自定义模型数值超出固定 0-350/0-100 范围）
+  const leftMax = calcAxisMax(species[0], state.params, 1.5);
+  const rightSpecies = species.slice(1);
+  const rightMax = rightSpecies.length > 0
+    ? Math.max(...rightSpecies.map((s) => calcAxisMax(s, state.params, 1.5)))
+    : 100;
   
   return {
     id: `custom_${Date.now()}`,
@@ -306,10 +356,30 @@ export function buildModel(
     paramMeta: state.paramMeta,
     dt: state.params.dt || 0.045,
     axisRanges: {
-      left: { min: 0, max: 350, step: 50, title: species[0]?.name || "种群密度", color: species[0]?.color || "#2e7d32" },
-      right: { min: 0, max: 100, step: 20, title: "其他种群密度", color: "#1e88e5" },
+      left: { min: 0, max: leftMax, step: niceStep(leftMax), title: species[0]?.name || "种群密度", color: species[0]?.color || "#2e7d32" },
+      right: { min: 0, max: rightMax, step: niceStep(rightMax), title: "其他种群密度", color: "#1e88e5" },
     },
   };
+}
+
+/** 计算单个物种的轴上限：取 initial 与 K（容纳量）的较大值，留出余量 */
+function calcAxisMax(species: SpeciesDef, params: Record<string, number>, margin: number): number {
+  let max = species.initial;
+  if (species.carryingCapacity && params[species.carryingCapacity]) {
+    max = Math.max(max, params[species.carryingCapacity]);
+  }
+  return Math.max(max * margin, 10);
+}
+
+/** 生成"好看的"刻度步长（1/2/5 × 10^n 系列） */
+function niceStep(max: number): number {
+  const raw = max / 5;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / pow;
+  let step = pow;
+  if (n >= 5) step = 5 * pow;
+  else if (n >= 2) step = 2 * pow;
+  return Math.max(step, 1);
 }
 
 /** 工具执行器 */
@@ -329,21 +399,42 @@ export async function executeBuilderTool(
       );
     
     case "add-species": {
+      const id = args.id as string;
+      const hasLogistic = (args.hasLogistic as boolean) ?? false;
+      const hasDeathRate = args.deathRate !== undefined;
+      // 自动生成唯一参数键（LLM 无需提供键名，避免冲突/缺失导致 NaN）
+      const keys = autoSpeciesKeys(id, hasLogistic, hasDeathRate);
+      // 自动分配颜色（按添加顺序，避免同色曲线重叠）
+      const color =
+        (args.color as string) ??
+        SPECIES_COLORS[api.state.species.length % SPECIES_COLORS.length];
       const species: SpeciesDef = {
-        id: args.id as string,
+        id,
         name: args.name as string,
-        color: (args.color as string) ?? "#4caf50",
+        color,
         axis: "right",
         minValue: 0.5,
         // 用 ?? 而非 ||，避免 initial=0 时被短路为 30
         initial: (args.initial as number) ?? 30,
-        hasLogistic: (args.hasLogistic as boolean) ?? false,
-        growthRate: args.growthRate as string | undefined,
-        carryingCapacity: args.carryingCapacity as string | undefined,
-        deathRate: args.deathRate as string | undefined,
+        hasLogistic,
+        growthRate: keys.growthRate,
+        carryingCapacity: keys.carryingCapacity,
+        deathRate: keys.deathRate,
       };
       api.addSpecies(species);
-      return { success: true, speciesId: species.id };
+      // 若 LLM 提供了参数数值，覆盖默认值
+      const overrides: Record<string, number> = {};
+      if (hasLogistic && keys.growthRate && keys.carryingCapacity) {
+        if (typeof args.growthRate === "number") overrides[keys.growthRate] = args.growthRate;
+        if (typeof args.carryingCapacity === "number") overrides[keys.carryingCapacity] = args.carryingCapacity;
+      }
+      if (hasDeathRate && keys.deathRate && typeof args.deathRate === "number") {
+        overrides[keys.deathRate] = args.deathRate;
+      }
+      if (Object.keys(overrides).length > 0) {
+        api.setParams({ ...api.state.params, ...overrides });
+      }
+      return { success: true, speciesId: id };
     }
     
     case "add-relation": {

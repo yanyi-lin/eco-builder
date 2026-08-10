@@ -36,13 +36,14 @@ export function derivatives(
     const N = pops[s.id] ?? 0;
 
     if (s.hasLogistic && s.growthRate && s.carryingCapacity) {
-      const r = params[s.growthRate];
-      const K = params[s.carryingCapacity];
+      // 参数缺失时按 0 处理（防御 NaN 传播）
+      const r = params[s.growthRate] ?? 0;
+      const K = params[s.carryingCapacity] ?? 1;
       rate += r * N * (1 - N / K);
     }
 
     if (s.deathRate) {
-      const deathRate = params[s.deathRate];
+      const deathRate = params[s.deathRate] ?? 0;
       rate -= deathRate * N;
     }
 
@@ -52,37 +53,37 @@ export function derivatives(
   // 2. 关系项
   for (const rel of spec.relations) {
     if (rel.type === "predation") {
-      const a = params[rel.predationRate!];
-      const e = params[rel.conversionEfficiency!];
-      const preyN = pops[rel.prey!] ?? 0;
-      const predN = pops[rel.predator!] ?? 0;
+      const a = params[rel.predationRate ?? ""] ?? 0;
+      const e = params[rel.conversionEfficiency ?? ""] ?? 0;
+      const preyN = pops[rel.prey ?? ""] ?? 0;
+      const predN = pops[rel.predator ?? ""] ?? 0;
       const interaction = a * preyN * predN;
 
-      d[rel.prey!] = (d[rel.prey!] ?? 0) - interaction;
-      d[rel.predator!] = (d[rel.predator!] ?? 0) + e * interaction;
+      d[rel.prey ?? ""] = (d[rel.prey ?? ""] ?? 0) - interaction;
+      d[rel.predator ?? ""] = (d[rel.predator ?? ""] ?? 0) + e * interaction;
 
       if (rel.predatorDeathRate) {
-        const m = params[rel.predatorDeathRate];
-        d[rel.predator!] = (d[rel.predator!] ?? 0) - m * predN;
+        const m = params[rel.predatorDeathRate] ?? 0;
+        d[rel.predator ?? ""] = (d[rel.predator ?? ""] ?? 0) - m * predN;
       }
     } else if (rel.type === "competition") {
-      const alpha1 = params[rel.coeff1!];
-      const alpha2 = params[rel.coeff2!];
-      const n1 = pops[rel.species1!] ?? 0;
-      const n2 = pops[rel.species2!] ?? 0;
+      const alpha1 = params[rel.coeff1 ?? ""] ?? 0;
+      const alpha2 = params[rel.coeff2 ?? ""] ?? 0;
+      const n1 = pops[rel.species1 ?? ""] ?? 0;
+      const n2 = pops[rel.species2 ?? ""] ?? 0;
       const interaction = n1 * n2;
 
-      d[rel.species1!] = (d[rel.species1!] ?? 0) - alpha1 * interaction;
-      d[rel.species2!] = (d[rel.species2!] ?? 0) - alpha2 * interaction;
+      d[rel.species1 ?? ""] = (d[rel.species1 ?? ""] ?? 0) - alpha1 * interaction;
+      d[rel.species2 ?? ""] = (d[rel.species2 ?? ""] ?? 0) - alpha2 * interaction;
     } else if (rel.type === "mutualism") {
-      const beta1 = params[rel.coeff1!];
-      const beta2 = params[rel.coeff2!];
-      const n1 = pops[rel.species1!] ?? 0;
-      const n2 = pops[rel.species2!] ?? 0;
+      const beta1 = params[rel.coeff1 ?? ""] ?? 0;
+      const beta2 = params[rel.coeff2 ?? ""] ?? 0;
+      const n1 = pops[rel.species1 ?? ""] ?? 0;
+      const n2 = pops[rel.species2 ?? ""] ?? 0;
       const interaction = n1 * n2;
 
-      d[rel.species1!] = (d[rel.species1!] ?? 0) + beta1 * interaction;
-      d[rel.species2!] = (d[rel.species2!] ?? 0) + beta2 * interaction;
+      d[rel.species1 ?? ""] = (d[rel.species1 ?? ""] ?? 0) + beta1 * interaction;
+      d[rel.species2 ?? ""] = (d[rel.species2 ?? ""] ?? 0) + beta2 * interaction;
     }
   }
 
