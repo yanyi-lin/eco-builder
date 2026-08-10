@@ -17,9 +17,9 @@ export function App() {
   const [modelId, setModelId] = useState(DEFAULT_MODEL_ID);
   const [customSpec, setCustomSpec] = useState<EcoModelSpec | null>(null);
   
-  // 当前使用的 spec：自定义模型优先于预设模型
+  // 当前使用的 spec：仅在模拟模式下使用 customSpec，构建模式不污染 sim/chart
   const spec = useMemo(() => {
-    if (mode === "build" && customSpec) return customSpec;
+    if (mode === "simulate" && customSpec) return customSpec;
     return getModel(modelId);
   }, [mode, customSpec, modelId]);
 
@@ -43,6 +43,8 @@ export function App() {
   const handleSwitchToBuild = () => {
     setMode("build");
     builder.reset();
+    // 构建模式依赖 AI 交互，自动展开抽屉
+    setAiCollapsed(false);
   };
   
   const handleSwitchToSimulate = () => {

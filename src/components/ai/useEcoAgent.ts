@@ -92,7 +92,9 @@ export function useEcoAgent(
         // 直接调用 builder 的 setParams 方法
         builderRef.current.api.setParams(params);
       },
-      buildAndRun: (name, description) => builderRef.current.buildAndRun(name, description),
+      buildAndRun: (spec) => {
+        builderRef.current.buildAndRun(spec);
+      },
     }),
     [],
   );
@@ -117,7 +119,7 @@ export function useEcoAgent(
           if (modeRef.current === "build") {
             output = await executeBuilderTool(toolName, args, builderApi);
           } else {
-            output = executeTool(toolName, args, simApi);
+            output = await executeTool(toolName, args, simApi);
           }
           
           addToolOutput({

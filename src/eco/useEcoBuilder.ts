@@ -5,7 +5,6 @@ import {
   type BuilderApi,
   inferDefaultParams,
   addRelationParams,
-  buildModel,
 } from "../tools/builderTools";
 
 export interface UseEcoBuilder {
@@ -16,7 +15,7 @@ export interface UseEcoBuilder {
   addRelation: (relation: RelationDef) => void;
   removeRelation: (index: number) => void;
   reset: () => void;
-  buildAndRun: (name: string, description: string) => EcoModelSpec | null;
+  buildAndRun: (spec: EcoModelSpec) => void;
 }
 
 /**
@@ -36,18 +35,12 @@ export function useEcoBuilder(
   const stateRef = useRef({ species, relations, params, paramMeta });
   stateRef.current = { species, relations, params, paramMeta };
 
+  // 修复：不在 setSpecies updater 内嵌套 setState，避免违反 React 纯函数原则
   const addSpecies = useCallback((newSpecies: SpeciesDef) => {
-    setSpecies(prev => {
-      const updated = [...prev, newSpecies];
-      
-      // 推断新物种的参数
-      const { params: newParams, paramMeta: newMeta } = inferDefaultParams([newSpecies]);
-      
-      setParams(p => ({ ...p, ...newParams }));
-      setParamMeta(m => ({ ...m, ...newMeta }));
-      
-      return updated;
-    });
+    setSpecies(prev => [...prev, newSpecies]);
+    const { params: newParams, paramMeta: newMeta } = inferDefaultParams([newSpecies]);
+    setParams(p => ({ ...p, ...newParams }));
+    setParamMeta(m => ({ ...m, ...newMeta }));
   }, []);
 
   const removeSpecies = useCallback((id: string) => {
@@ -57,26 +50,22 @@ export function useEcoBuilder(
     ));
   }, []);
 
+  // 修复：不在 setRelations updater 内嵌套 setState
   const addRelation = useCallback((relation: RelationDef) => {
-    setRelations(prev => {
-      const updated = [...prev, relation];
-      
-      // 为新关系添加参数
-      const newParams = { ...stateRef.current.params };
-      const newMeta = { ...stateRef.current.paramMeta };
-      
-      const speciesNames: Record<string, string> = {};
-      for (const sp of stateRef.current.species) {
-        speciesNames[sp.id] = sp.name;
-      }
-      
-      addRelationParams(relation, newParams, newMeta, speciesNames);
-      
-      setParams(newParams);
-      setParamMeta(newMeta);
-      
-      return updated;
-    });
+    setRelations(prev => [...prev, relation]);
+    
+    const newParams = { ...stateRef.current.params };
+    const newMeta = { ...stateRef.current.paramMeta };
+    
+    const speciesNames: Record<string, string> = {};
+    for (const sp of stateRef.current.species) {
+      speciesNames[sp.id] = sp.name;
+    }
+    
+    addRelationParams(relation, newParams, newMeta, speciesNames);
+    
+    setParams(newParams);
+    setParamMeta(newMeta);
   }, []);
 
   const removeRelation = useCallback((index: number) => {
@@ -92,19 +81,11 @@ export function useEcoBuilder(
     });
   }, []);
 
-  const buildAndRun = useCallback((name: string, description: string): EcoModelSpec | null => {
-    const state: BuilderState = {
-      species: stateRef.current.species,
-      relations: stateRef.current.relations,
-      params: stateRef.current.params,
-      paramMeta: stateRef.current.paramMeta,
-    };
-    
-    const spec = buildModel(state, name, description);
-    if (spec && onBuildAndRun) {
+  // 修复：buildAndRun 直接接收完整 spec，不再重新构建
+  const buildAndRun = useCallback((spec: EcoModelSpec) => {
+    if (onBuildAndRun) {
       onBuildAndRun(spec);
     }
-    return spec;
   }, [onBuildAndRun]);
 
   const state: BuilderState = useMemo(() => ({
@@ -118,24 +99,16 @@ export function useEcoBuilder(
     get state() {
       return stateRef.current;
     },
-    setSpecies: (species) => {
-      setSpecies(species);
-    },
+    setSpecies: (sp) => setSpecies(sp),
     addSpecies,
     removeSpecies,
     addRelation,
     removeRelation,
-    setParams: (params) => {
-      setParams(params);
+    setParams: (p) => setParams(p),
+    buildAndRun: (spec) => {
+      if (onBuildAndRun) onBuildAndRun(spec);
     },
-    buildAndRun: (name, description) => {
-      const spec = buildModel(stateRef.current, name, description);
-      if (spec && onBuildAndRun) {
-        onBuildAndRun(spec);
-      }
-      return spec;
-    },
-  }), [addSpecies, removeSpecies, addRelation, removeRelation, buildAndRun, onBuildAndRun]);
+  }), [addSpecies, removeSpecies, addRelation, removeRelation, onBuildAndRun]);
 
   return {
     state,

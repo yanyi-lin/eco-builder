@@ -42,7 +42,7 @@ export interface BuilderApi {
   addRelation: (relation: RelationDef) => void;
   removeRelation: (index: number) => void;
   setParams: (params: Record<string, number>) => void;
-  buildAndRun: (name: string, description: string) => EcoModelSpec | null;
+  buildAndRun: (spec: EcoModelSpec) => void;
 }
 
 /** 搜索物种（GBIF） */
@@ -332,11 +332,12 @@ export async function executeBuilderTool(
       const species: SpeciesDef = {
         id: args.id as string,
         name: args.name as string,
-        color: args.color as string || "#4caf50",
+        color: (args.color as string) ?? "#4caf50",
         axis: "right",
         minValue: 0.5,
-        initial: args.initial as number || 30,
-        hasLogistic: args.hasLogistic as boolean || false,
+        // 用 ?? 而非 ||，避免 initial=0 时被短路为 30
+        initial: (args.initial as number) ?? 30,
+        hasLogistic: (args.hasLogistic as boolean) ?? false,
         growthRate: args.growthRate as string | undefined,
         carryingCapacity: args.carryingCapacity as string | undefined,
         deathRate: args.deathRate as string | undefined,
@@ -346,8 +347,13 @@ export async function executeBuilderTool(
     }
     
     case "add-relation": {
+      // 运行时校验关系类型，避免非法值
+      const relType = args.type as string;
+      if (relType !== "predation" && relType !== "competition" && relType !== "mutualism") {
+        return { error: `非法关系类型: ${relType ?? "undefined"}` };
+      }
       const relation: RelationDef = {
-        type: args.type as RelationType,
+        type: relType as RelationType,
         prey: args.prey as string | undefined,
         predator: args.predator as string | undefined,
         predationRate: args.predationRate as string | undefined,
@@ -390,8 +396,8 @@ export async function executeBuilderTool(
         args.description as string || ""
       );
       if (builtModel) {
-        api.buildAndRun(builtModel.name, builtModel.description);
-        return { success: true };
+        api.buildAndRun(builtModel);
+        return { success: true, modelId: builtModel.id };
       }
       return { error: "构建失败：没有物种" };
     

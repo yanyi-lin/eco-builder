@@ -75,8 +75,9 @@ export class EcoChatAgent extends AIChatAgent<Env> {
       `SELECT total_tokens FROM token_usage WHERE date = ?`,
       [today]
     );
-    const row = result.one();
-    return (row?.total_tokens as number) || 0;
+    // 使用 toArray() 而非 one()，避免 0 行时抛 RangeError
+    const rows = result.toArray();
+    return (rows[0]?.total_tokens as number) || 0;
   }
 
   private async recordUsage(promptTokens: number, completionTokens: number) {
