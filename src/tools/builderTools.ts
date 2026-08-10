@@ -1,4 +1,5 @@
 import type { SpeciesDef, RelationDef, RelationType, EcoModelSpec, ParamMeta } from "../eco/types";
+import { ensureFeasible } from "./feasibility";
 
 /** GBIF 物种匹配结果 */
 export interface GbifMatch {
@@ -471,9 +472,9 @@ export function buildModel(
 
   // === 数值可行性校验（硬保证：不因默认/LLM 参数灭绝）===
   // 快速模拟 ~4000 步（约 180 时间单位，覆盖 10+ 个振荡周期），
-  // 若任一物种触底（≤ minValue）则说明参数不可行，逐步降低捕食率重试。
-  // 灭绝原因分类：结构性必然（如鲸落：无生产者/一次性资源）不调参，
-  // 仅返回诊断；参数性可修复（捕食率/死亡率/转化率极端）自动调参。
+  // 若任一物种触底（≤ minValue）则进入"检测→修改→再检测"修复循环：
+  // 参数性可修复（有能量来源但参数极端）→ 自动调参直到修好（adjusted）；
+  // 结构性必然（如鲸落：无生产者/一次性资源，或调参仍无法避免）→ 不运行，返回诊断（structural-extinction）。
   const feasible = ensureFeasible(species, relations, params);
   if (feasible.status === "adjusted") {
     console.warn("[builder] 模型参数不可行，已自动调整:", feasible.message);
@@ -500,149 +501,6 @@ export function buildModel(
       left: { min: 0, max: leftMax, step: niceStep(leftMax), title: species[0]?.name || "种群密度", color: species[0]?.color || "#2e7d32" },
       right: { min: 0, max: rightMax, step: niceStep(rightMax), title: "其他种群密度", color: "#1e88e5" },
     },
-  };
-}
-
-/**
- * 数值可行性校验：模拟运行，若有物种灭绝：
- * - 结构性必然灭绝（系统无能量来源，如鲸落/无生产者）→ 不调参，返回诊断
- * - 参数性可修复（有能量来源但参数极端）→ 自动降低捕食率/提升增长率重试
- */
-function ensureFeasible(
-  species: SpeciesDef[],
-  relations: RelationDef[],
-  params: Record<string, number>,
-): { status: "ok" | "adjusted" | "structural-extinction"; params: Record<string, number>; message?: string; extinctSpecies?: string[] } {
-  const DT = 0.045;
-  const STEPS = 4000;
-  const MIN_PREDATION = 0.002;
-
-  // 收集所有捕食率键（自动生成的 <prey>_<pred>_a）
-  const predationKeys = relations
-    .filter((r) => r.type === "predation" && r.predationRate)
-    .map((r) => r.predationRate!);
-
-  // 一次模拟：返回灭绝物种列表（100 步后触底判定）；无灭绝返回空数组
-  const simulate = (p: Record<string, number>): string[] => {
-    const pops: Record<string, number> = {};
-    for (const s of species) pops[s.id] = p[`${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}0`] ?? s.initial;
-    for (let i = 0; i < STEPS; i++) {
-      const d: Record<string, number> = {};
-      for (const s of species) {
-        let rate = 0;
-        if (s.hasLogistic && s.growthRate && s.carryingCapacity) {
-          rate += (p[s.growthRate] ?? 0) * pops[s.id] * (1 - pops[s.id] / (p[s.carryingCapacity] ?? 1));
-        }
-        if (s.deathRate) rate -= (p[s.deathRate] ?? 0) * pops[s.id];
-        d[s.id] = rate;
-      }
-      for (const r of relations) {
-        if (r.type !== "predation") continue;
-        const a = p[r.predationRate ?? ""] ?? 0;
-        const e = p[r.conversionEfficiency ?? ""] ?? 0;
-        const preyN = pops[r.prey ?? ""] ?? 0;
-        const predN = pops[r.predator ?? ""] ?? 0;
-        d[r.prey ?? ""] = (d[r.prey ?? ""] ?? 0) - a * preyN * predN;
-        d[r.predator ?? ""] = (d[r.predator ?? ""] ?? 0) + e * a * preyN * predN;
-        if (r.predatorDeathRate) {
-          d[r.predator ?? ""] = (d[r.predator ?? ""] ?? 0) - (p[r.predatorDeathRate] ?? 0) * predN;
-        }
-      }
-      for (const s of species) {
-        const next = pops[s.id] + (d[s.id] ?? 0) * DT;
-        pops[s.id] = isFinite(next) ? Math.max(next, s.minValue) : s.minValue;
-      }
-      // 100 步后若任一物种贴地（≤ minValue + ε），判定灭绝
-      if (i > 100) {
-        const extinct = species.filter((s) => pops[s.id] <= s.minValue + 0.01);
-        if (extinct.length > 0) return extinct.map((s) => s.id);
-      }
-    }
-    return [];
-  };
-
-  // 灭绝原因分类（第一性原理）：
-  // 沿灭绝物种的食物链向上追索，判断是否存在"可再生能量来源"：
-  // - 自身有 logistic（生产者）或
-  // - 捕食链中存在某个 prey 有 logistic（间接生产者）
-  // 若整条链都无 logistic 基底 → 能量来源是一次性的 → 结构性必然灭绝（如鲸落），不调参。
-  const classifyExtinction = (extinctIds: string[]): "structural" | "adjustable" => {
-    const speciesById = new Map(species.map((s) => [s.id, s]));
-    // 预处理：每个物种的猎物列表（作为 predator 时吃的 prey）
-    const preyOf = new Map<string, string[]>();
-    for (const r of relations) {
-      if (r.type !== "predation" || !r.predator || !r.prey) continue;
-      const list = preyOf.get(r.predator) ?? [];
-      list.push(r.prey);
-      preyOf.set(r.predator, list);
-    }
-    // 是否有再生来源（自身 logistic 或递归吃到的猎物有 logistic）
-    const hasRenewableSource = (id: string, visited: Set<string>): boolean => {
-      if (visited.has(id)) return false;
-      visited.add(id);
-      const s = speciesById.get(id);
-      if (!s) return false;
-      if (s.hasLogistic) return true;
-      // 从猎物链递归查找
-      for (const prey of preyOf.get(id) ?? []) {
-        if (hasRenewableSource(prey, visited)) return true;
-      }
-      return false;
-    };
-    // 只要有一个灭绝物种无再生来源 → 结构性
-    for (const id of extinctIds) {
-      if (!hasRenewableSource(id, new Set())) return "structural";
-    }
-    return "adjustable";
-  };
-
-  // 尝试逐步降低捕食率（最多 5 轮），直到可行或到下限
-  const work = { ...params };
-  let extinct: string[] = [];
-  let adjusted = false;
-  for (let round = 0; round < 6; round++) {
-    extinct = simulate(work);
-    if (extinct.length === 0) {
-      // 第一轮即通过 → ok；调参后通过 → adjusted（告知 LLM 参数被修改）
-      return adjusted
-        ? { status: "adjusted", params: work, message: "已自动调整参数（降低捕食率/提升增长率）以保证系统可持续运行", extinctSpecies: extinct }
-        : { status: "ok", params: work };
-    }
-    // 灭绝原因分类：结构性必然 → 不调参，直接返回诊断
-    if (round === 0 && classifyExtinction(extinct) === "structural") {
-      const names = extinct.map((id) => species.find((s) => s.id === id)?.name ?? id);
-      return {
-        status: "structural-extinction",
-        params: work,
-        message: `物种 ${names.join("、")} 必然灭绝：系统中不存在可再生的能量来源（无生产者/自增长物种），这是一次性资源系统（类似鲸落），属生态学必然结局，未自动调整参数。`,
-        extinctSpecies: extinct,
-      };
-    }
-    // 参数性：降低所有捕食率 30%，并提高转化效率 20%（补偿食物获取）
-    adjusted = true;
-    let changed = false;
-    for (const k of predationKeys) {
-      if (work[k] !== undefined && work[k] > MIN_PREDATION) {
-        work[k] = Math.max(work[k] * 0.7, MIN_PREDATION);
-        changed = true;
-      }
-    }
-    // 同时提升资源型猎物的增长率（增强生产者再生）
-    for (const s of species) {
-      if (s.hasLogistic && s.growthRate && work[s.growthRate] !== undefined && work[s.growthRate] < 0.6) {
-        work[s.growthRate] = Math.min(work[s.growthRate] * 1.3, 0.6);
-        changed = true;
-      }
-    }
-    if (!changed) break;
-  }
-  // 调参 6 轮后仍灭绝：说明参数已降至下限仍无解，返回诊断 + 调参后参数（尽力而为）
-  const names = extinct.map((id) => species.find((s) => s.id === id)?.name ?? id);
-  return {
-    status: "adjusted",
-    params: work,
-    message: `已尝试自动调参（捕食率降至下限 ${MIN_PREDATION}）仍无法避免 ${names.join("、")} 灭绝，模型结构可能需要调整`,
-    extinctSpecies: extinct,
   };
 }
 

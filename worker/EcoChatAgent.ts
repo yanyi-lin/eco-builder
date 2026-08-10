@@ -56,9 +56,10 @@ const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回�
 - add-relation 只需传 type/prey/predator（或 species1/species2），捕食率等系数代码自动生成，无需传
 
 ## 模型可行性诊断（run-model 返回 feasibility 字段时）
-- feasibility.status = "adjusted"：系统自动调整了参数（捕食率/增长率），向学生简述调整内容
-- feasibility.status = "structural-extinction"：系统结构上必然灭绝（如鲸落：无生产者、一次性资源），这是真实的生态学现象。**此时模型不会运行**，你会收到 error 提示。正确做法：
-  1. 向学生解释灭绝原因（缺少可再生的能量来源/生产者）
+系统会自动执行"检测→修改→再检测"循环，直到把参数性灭绝修好；只有确认无法通过参数修复（结构上必然灭绝）才会返回 structural-extinction。
+- feasibility.status = "adjusted"：系统自动调整了参数（降低捕食率/调整增长率/容纳量/死亡率等）以消除灭绝，模型可运行。向学生简述系统自动修复了什么
+- feasibility.status = "structural-extinction"：系统结构上必然灭绝（如鲸落：无生产者、一次性资源），已尝试自动调参但仍无法避免，**此时模型不会运行**，你会收到 error 提示。正确做法：
+  1. 向学生解释灭绝原因（缺少可再生的能量来源/生产者，或食物链过长）
   2. 询问学生是否要调整模型结构（如添加生产者/可再生资源物种）
   3. 学生同意后，用 add-species/add-relation 修改模型
   4. **再次调用 run-model 重新检测**（检测→修改→再检测循环），直到模型可运行
