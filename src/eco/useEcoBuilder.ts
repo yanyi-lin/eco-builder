@@ -51,7 +51,19 @@ export function useEcoBuilder(
   }, []);
 
   // 修复：不在 setRelations updater 内嵌套 setState
+  // 修复：addRelation 去重——LLM 可能对同一物种对重复调用 add-relation，
+  // 重复的捕食项会在 derivatives 中叠加（捕食强度翻倍），导致猎物快速灭绝。
+  // 同一 prey-predator（或 species1-species2）+ 同类型只保留第一条。
   const addRelation = useCallback((relation: RelationDef) => {
+    const isDuplicate = stateRef.current.relations.some((r) => {
+      if (r.type !== relation.type) return false;
+      if (relation.type === "predation") {
+        return r.prey === relation.prey && r.predator === relation.predator;
+      }
+      return r.species1 === relation.species1 && r.species2 === relation.species2;
+    });
+    if (isDuplicate) return;
+
     setRelations(prev => [...prev, relation]);
     
     const newParams = { ...stateRef.current.params };
@@ -62,7 +74,15 @@ export function useEcoBuilder(
       speciesNames[sp.id] = sp.name;
     }
     
-    addRelationParams(relation, newParams, newMeta, speciesNames);
+    // 传入已有关系（判断顶级捕食者）与物种列表（判断资源型猎物，调整捕食率）
+    addRelationParams(
+      relation,
+      newParams,
+      newMeta,
+      speciesNames,
+      stateRef.current.relations,
+      stateRef.current.species,
+    );
     
     setParams(newParams);
     setParamMeta(newMeta);

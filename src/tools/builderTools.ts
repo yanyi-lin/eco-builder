@@ -71,6 +71,12 @@ export function autoSpeciesKeys(
   };
 }
 
+/** 数值 clamp 到 [min, max]，防御 LLM 传极端参数导致系统崩溃 */
+function clampNum(v: number, min: number, max: number): number {
+  if (!isFinite(v)) return min;
+  return Math.min(Math.max(v, min), max);
+}
+
 /** 搜索物种（GBIF） */
 export async function searchSpecies(query: string): Promise<{
   matches: GbifMatch[];
@@ -216,7 +222,9 @@ export function addRelationParams(
   relation: RelationDef,
   params: Record<string, number>,
   paramMeta: Record<string, ParamMeta>,
-  speciesNames: Record<string, string>
+  speciesNames: Record<string, string>,
+  existingRelations?: RelationDef[],
+  species?: SpeciesDef[],
 ): void {
   if (relation.type === "predation") {
     const prey = relation.prey ?? "prey";
@@ -224,11 +232,16 @@ export function addRelationParams(
     // 自动生成捕食参数键：<prey>_<pred>_a / _e / _m
     const predationRate = relation.predationRate ?? `${prey}_${predator}_a`;
     const conversionEfficiency = relation.conversionEfficiency ?? `${prey}_${predator}_e`;
-    const predatorDeathRate = relation.predatorDeathRate ?? `${predator}_m`;
 
-    params[predationRate] = params[predationRate] ?? 0.01;
-    params[conversionEfficiency] = params[conversionEfficiency] ?? 0.6;
-    params[predatorDeathRate] = params[predatorDeathRate] ?? 0.1;
+    // 捕食率 clamp 到安全范围（敏感性分析：a>=0.018 时猎物在 ~136 步内灭绝，
+    // 0.015 留安全裕度）。默认 0.01，与经典 LV 模型量级一致。
+    // 若猎物是资源型（hasLogistic，如植物），捕食率取更低值 0.008，
+    // 防止资源被过度消耗导致整个系统崩溃（原版植物捕食率仅 0.009）。
+    const preyIsResource = species?.some((s) => s.id === prey && s.hasLogistic) ?? false;
+    const defaultRate = preyIsResource ? 0.008 : 0.01;
+    params[predationRate] = clampNum(params[predationRate] ?? defaultRate, 0.002, 0.015);
+    // 转化效率默认 0.68（原版植物→雪兔参数，稳定性好；0.6 偏低易导致灭绝）
+    params[conversionEfficiency] = clampNum(params[conversionEfficiency] ?? 0.68, 0.1, 0.9);
 
     const preyName = speciesNames[prey] || prey;
     const predatorName = speciesNames[predator] || predator;
@@ -236,8 +249,8 @@ export function addRelationParams(
     paramMeta[predationRate] = {
       label: `${predatorName}捕食${preyName}率`,
       group: "dynamic",
-      min: 0.001,
-      max: 0.05,
+      min: 0.002,
+      max: 0.015,
       step: 0.001,
       digits: 4,
     };
@@ -249,14 +262,25 @@ export function addRelationParams(
       step: 0.05,
       digits: 3,
     };
-    paramMeta[predatorDeathRate] = {
-      label: `${predatorName}死亡率`,
-      group: "dynamic",
-      min: 0.05,
-      max: 0.3,
-      step: 0.01,
-      digits: 3,
-    };
+
+    // 捕食者死亡率只对"顶级捕食者"生成（该捕食者不再被任何其他关系捕食）。
+    // 中间营养级物种（如兔子，既捕食草又被狼捕食）不生成 predatorDeathRate，
+    // 否则与自身 deathRate 叠加 + 额外死亡项，导致数量偏低或灭绝。
+    const isTopPredator = !(existingRelations ?? []).some(
+      (r) => r.type === "predation" && r.prey === predator,
+    );
+    if (isTopPredator) {
+      const predatorDeathRate = relation.predatorDeathRate ?? `${predator}_m`;
+      params[predatorDeathRate] = params[predatorDeathRate] ?? 0.1;
+      paramMeta[predatorDeathRate] = {
+        label: `${predatorName}死亡率`,
+        group: "dynamic",
+        min: 0.05,
+        max: 0.3,
+        step: 0.01,
+        digits: 3,
+      };
+    }
   } else if (relation.type === "competition") {
     const sp1 = relation.species1 ?? "sp1";
     const sp2 = relation.species2 ?? "sp2";
@@ -339,11 +363,43 @@ export function buildModel(
     axis: (i === 0 ? "left" : "right") as "left" | "right",
   }));
 
+  // === 最终防护（第一性原理：保证自定义模型可运行、不快速灭绝）===
+  // 1. 关系去重：同一 prey-predator 捕食关系只保留一条（重复会叠加捕食强度 → 猎物灭绝）
+  const seenRel = new Set<string>();
+  const relations = state.relations.filter((r) => {
+    const key =
+      r.type === "predation"
+        ? `${r.type}:${r.prey}:${r.predator}`
+        : `${r.type}:${r.species1}:${r.species2}`;
+    if (seenRel.has(key)) return false;
+    seenRel.add(key);
+    return true;
+  });
+
+  // 2. 找出被猎食的物种（中间营养级），移除其捕食者死亡参数键 <id>_m
+  //    （中间物种被更高层捕食，不该再有 predatorDeathRate 额外死亡项）
+  const preyIds = new Set(relations.filter(r => r.type === "predation").map(r => r.prey ?? ""));
+  const params = { ...state.params };
+  const paramMeta = { ...state.paramMeta };
+  for (const r of relations) {
+    if (r.type === "predation" && r.predator) {
+      if (preyIds.has(r.predator)) {
+        // 中间营养级：移除多余死亡参数键
+        const deathKey = `${r.predator}_m`;
+        delete params[deathKey];
+        delete paramMeta[deathKey];
+      } else if (r.predationRate && params[r.predationRate] !== undefined) {
+        // 顶级捕食者的捕食率也 clamp（防御 LLM 传极端值）
+        params[r.predationRate] = clampNum(params[r.predationRate], 0.002, 0.015);
+      }
+    }
+  }
+  
   // 根据初始值/容纳量动态计算 Y 轴范围（避免自定义模型数值超出固定 0-350/0-100 范围）
-  const leftMax = calcAxisMax(species[0], state.params, 1.5);
+  const leftMax = calcAxisMax(species[0], params, 1.5);
   const rightSpecies = species.slice(1);
   const rightMax = rightSpecies.length > 0
-    ? Math.max(...rightSpecies.map((s) => calcAxisMax(s, state.params, 1.5)))
+    ? Math.max(...rightSpecies.map((s) => calcAxisMax(s, params, 1.5)))
     : 100;
   
   return {
@@ -351,10 +407,10 @@ export function buildModel(
     name,
     description,
     species,
-    relations: state.relations,
-    params: state.params,
-    paramMeta: state.paramMeta,
-    dt: state.params.dt || 0.045,
+    relations,
+    params,
+    paramMeta,
+    dt: params.dt || 0.045,
     axisRanges: {
       left: { min: 0, max: leftMax, step: niceStep(leftMax), title: species[0]?.name || "种群密度", color: species[0]?.color || "#2e7d32" },
       right: { min: 0, max: rightMax, step: niceStep(rightMax), title: "其他种群密度", color: "#1e88e5" },
