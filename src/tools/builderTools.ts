@@ -269,14 +269,20 @@ export function addRelationParams(
     const isTopPredator = !(existingRelations ?? []).some(
       (r) => r.type === "predation" && r.prey === predator,
     );
-    if (isTopPredator) {
+    // 若顶级捕食者已有自身 deathRate（LLM 传入 <id>_d），则不生成 predatorDeathRate，
+    // 避免双重死亡叠加导致灭绝。
+    const hasSelfDeath = (species ?? []).some(
+      (s) => s.id === predator && s.deathRate && params[s.deathRate] !== undefined,
+    );
+    if (isTopPredator && !hasSelfDeath) {
       const predatorDeathRate = relation.predatorDeathRate ?? `${predator}_m`;
-      params[predatorDeathRate] = params[predatorDeathRate] ?? 0.1;
+      // 顶级捕食者死亡率 clamp 到 [0.03, 0.12]（敏感性分析：>0.12 时多次扰动下狼灭绝）
+      params[predatorDeathRate] = clampNum(params[predatorDeathRate] ?? 0.08, 0.03, 0.12);
       paramMeta[predatorDeathRate] = {
         label: `${predatorName}死亡率`,
         group: "dynamic",
-        min: 0.05,
-        max: 0.3,
+        min: 0.03,
+        max: 0.12,
         step: 0.01,
         digits: 3,
       };
@@ -356,12 +362,6 @@ export function buildModel(
   for (const sp of state.species) {
     speciesNames[sp.id] = sp.name;
   }
-  
-  // 分配 Y 轴：第一个物种 left，其他 right
-  const species = state.species.map((sp, i) => ({
-    ...sp,
-    axis: (i === 0 ? "left" : "right") as "left" | "right",
-  }));
 
   // === 最终防护（第一性原理：保证自定义模型可运行、不快速灭绝）===
   // 1. 关系去重：同一 prey-predator 捕食关系只保留一条（重复会叠加捕食强度 → 猎物灭绝）
@@ -394,7 +394,66 @@ export function buildModel(
       }
     }
   }
-  
+
+  // 2b. 物种自身死亡率 clamp（LLM 可能传 0.5 等极端值 → 快速灭绝）
+  //     差异化：顶级捕食者（不被捕食）容忍度低（上界 0.12），
+  //     中间营养级（被捕食）容忍度高（上界 0.2）。
+  //     敏感性分析：多次扰动下狼(顶级)死亡 >0.13 灭绝，0.12 留裕度。
+  const topPredatorIds = new Set(
+    relations
+      .filter((r) => r.type === "predation" && !preyIds.has(r.predator ?? ""))
+      .map((r) => r.predator ?? ""),
+  );
+  for (const sp of state.species) {
+    if (sp.deathRate && params[sp.deathRate] !== undefined) {
+      const upper = topPredatorIds.has(sp.id) ? 0.12 : 0.2;
+      params[sp.deathRate] = clampNum(params[sp.deathRate], 0.02, upper);
+    }
+  }
+
+  // 3. 增长来源兜底：无 logistic 且不是任何捕食关系"捕食者"的物种
+  //    （既不自增长、也无食物来源）必然灭绝。自动补上 logistic 增长
+  //    （生产者角色），不依赖 LLM 是否传 hasLogistic。
+  const predatorIds = new Set(
+    relations.filter(r => r.type === "predation").map(r => r.predator ?? ""),
+  );
+
+  // 重新构造 species：无增长来源的物种补 logistic
+  const enrichedSpecies = state.species.map((sp) => {
+    const hasFoodSource = predatorIds.has(sp.id);
+    let out: SpeciesDef = { ...sp };
+    if (!out.hasLogistic && !hasFoodSource) {
+      // 无增长来源 → 视为生产者，补 logistic 增长
+      const rKey = `${sp.id}_r`;
+      const kKey = `${sp.id}_K`;
+      out = {
+        ...out,
+        hasLogistic: true,
+        growthRate: rKey,
+        carryingCapacity: kKey,
+      };
+      // 补默认参数（若未设置）
+      if (params[rKey] === undefined) params[rKey] = 0.3;
+      if (params[kKey] === undefined) params[kKey] = 200;
+      const initKey = `${sp.id.charAt(0).toUpperCase()}${sp.id.slice(1)}0`;
+      if (params[initKey] === undefined) params[initKey] = sp.initial;
+      // 补参数元数据
+      if (paramMeta[rKey] === undefined) {
+        paramMeta[rKey] = { label: `${sp.name}增长率`, group: "dynamic", min: 0.05, max: 0.8, step: 0.005, digits: 3 };
+      }
+      if (paramMeta[kKey] === undefined) {
+        paramMeta[kKey] = { label: `${sp.name}容纳量`, group: "dynamic", min: 50, max: 500, step: 10, digits: 0 };
+      }
+    }
+    return out;
+  });
+
+  // 分配 Y 轴：第一个物种 left，其他 right
+  const species = enrichedSpecies.map((sp, i) => ({
+    ...sp,
+    axis: (i === 0 ? "left" : "right") as "left" | "right",
+  }));
+
   // 根据初始值/容纳量动态计算 Y 轴范围（避免自定义模型数值超出固定 0-350/0-100 范围）
   const leftMax = calcAxisMax(species[0], params, 1.5);
   const rightSpecies = species.slice(1);
@@ -478,14 +537,18 @@ export async function executeBuilderTool(
         deathRate: keys.deathRate,
       };
       api.addSpecies(species);
-      // 若 LLM 提供了参数数值，覆盖默认值
+      // 若 LLM 提供了参数数值，覆盖默认值（但 clamp 到安全范围，防止极端值导致灭绝）
       const overrides: Record<string, number> = {};
       if (hasLogistic && keys.growthRate && keys.carryingCapacity) {
-        if (typeof args.growthRate === "number") overrides[keys.growthRate] = args.growthRate;
-        if (typeof args.carryingCapacity === "number") overrides[keys.carryingCapacity] = args.carryingCapacity;
+        if (typeof args.growthRate === "number") {
+          overrides[keys.growthRate] = clampNum(args.growthRate, 0.05, 0.6);
+        }
+        if (typeof args.carryingCapacity === "number") {
+          overrides[keys.carryingCapacity] = clampNum(args.carryingCapacity, 50, 500);
+        }
       }
       if (hasDeathRate && keys.deathRate && typeof args.deathRate === "number") {
-        overrides[keys.deathRate] = args.deathRate;
+        overrides[keys.deathRate] = clampNum(args.deathRate, 0.02, 0.2);
       }
       if (Object.keys(overrides).length > 0) {
         api.setParams({ ...api.state.params, ...overrides });
