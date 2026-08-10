@@ -442,11 +442,27 @@ export function buildModel(
     relations.filter(r => r.type === "predation").map(r => r.predator ?? ""),
   );
 
-  // 重新构造 species：无增长来源的物种补 logistic
+  // 重新构造 species：仅对"完全孤立"的物种兜底补 logistic。
+  // 注意：参与 competition/mutualism 关系的物种不兜底——竞争场景下
+  // "无自增长"正是"有限资源耗竭"的语义（如 Gause 竞争实验：大小草履虫
+  // 竞争培养液，资源耗尽后双方都归零）。尊重 LLM 传入的 hasLogistic，
+  // 不把竞争/互利物种强制改成生产者。
+  const relationSpecies = new Set<string>();
+  for (const r of relations) {
+    if (r.type === "predation") {
+      if (r.prey) relationSpecies.add(r.prey);
+      if (r.predator) relationSpecies.add(r.predator);
+    } else {
+      if (r.species1) relationSpecies.add(r.species1);
+      if (r.species2) relationSpecies.add(r.species2);
+    }
+  }
   const enrichedSpecies = state.species.map((sp) => {
     const hasFoodSource = predatorIds.has(sp.id);
+    const inRelation = relationSpecies.has(sp.id);
     let out: SpeciesDef = { ...sp };
-    if (!out.hasLogistic && !hasFoodSource) {
+    // 仅当：无 logistic、无食物来源、且不参与任何关系（完全孤立）时才兜底补生产者
+    if (!out.hasLogistic && !hasFoodSource && !inRelation) {
       // 无增长来源 → 视为生产者，补 logistic 增长
       const rKey = `${sp.id}_r`;
       const kKey = `${sp.id}_K`;

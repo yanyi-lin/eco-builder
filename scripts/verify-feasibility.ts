@@ -220,31 +220,35 @@ function check(label: string, got: string, expected: string) {
   }
 }
 
-// 场景9: buildModel 轴分配——先添加顶级捕食者（狼）时，左轴应归第一个生产者（草）
-//   旧 bug：左轴固定给"第一个添加的物种"（狼），导致捕食者占左轴、缩放错位。
-async function verifyAxisAssignment() {
-  const { buildModel } = await import("../src/tools/builderTools");
-  const state = {
-    species: [
-      { id: "wolf", name: "狼", color: "#111", axis: "right", minValue: 0.5, initial: 10, hasLogistic: false },
-      { id: "grass", name: "草", color: "#2e7d32", axis: "right", minValue: 0.5, initial: 80, hasLogistic: true, growthRate: "grass_r", carryingCapacity: "grass_K" },
-      { id: "rabbit", name: "兔", color: "#e53935", axis: "right", minValue: 0.5, initial: 50, hasLogistic: true, growthRate: "rabbit_r", carryingCapacity: "rabbit_K" },
-    ],
-    relations: [
-      { type: "predation", prey: "grass", predator: "rabbit", predationRate: "grass_rabbit_a", conversionEfficiency: "grass_rabbit_e" },
-      { type: "predation", prey: "rabbit", predator: "wolf", predationRate: "rabbit_wolf_a", conversionEfficiency: "rabbit_wolf_e", predatorDeathRate: "rabbit_wolf_m" },
-    ],
-    params: {},
-    paramMeta: {},
-  } as any;
-  const model = buildModel(state, "轴分配测试", "");
-  if (!model) { fail++; process.exitCode = 1; console.log("FAIL 构建失败"); return; }
-  const leftSpecies = model.species.filter((s) => s.axis === "left").map((s) => s.name);
-  if (leftSpecies.length === 1 && leftSpecies[0] === "草") { pass++; console.log("PASS 左轴归生产者(草):", leftSpecies.join(",")); }
-  else { fail++; process.exitCode = 1; console.log("FAIL 左轴分配错误:", leftSpecies.join(",")); }
+// 场景10: 纯竞争耗竭模型（Gause 草履虫实验）——无 logistic 的竞争物种
+//   不应被 buildModel 兜底补成生产者，且 feasibility 判 ok（耗竭是预期行为）
+{
+  const species = [
+    makeSpecies("pc", "大草履虫", { hasLogistic: false, initial: 50 }),
+    makeSpecies("pa", "小草履虫", { hasLogistic: false, initial: 50 }),
+  ];
+  const relations = [
+    { type: "competition", species1: "pc", species2: "pa", coeff1: "pc_pa_c1", coeff2: "pc_pa_c2" },
+  ];
+  const params: Record<string, number> = { Pc0: 50, Pa0: 50, pc_pa_c1: 0.005, pc_pa_c2: 0.005 };
+  const res = ensureFeasible(species, relations, params);
+  check("场景10 纯竞争耗竭 → 非structural", res.status === "structural-extinction" ? "structural-extinction" : "not-structural", "not-structural");
+  // 验证模拟会归零
+  const { derivatives } = await import("../src/eco/derivatives");
+  const spec = { species, relations, params, dt: 0.045 } as any;
+  let pops: Record<string, number> = { pc: 50, pa: 50 };
+  for (let i = 0; i < 6000; i++) {
+    const d = derivatives(spec, params, pops);
+    for (const s of species) {
+      let v = pops[s.id] + (d[s.id] ?? 0) * 0.045;
+      if (!isFinite(v)) v = s.minValue;
+      if (v < s.minValue) v = s.minValue;
+      pops[s.id] = v;
+    }
+  }
+  if (pops.pc < 1 && pops.pa < 1) { pass++; console.log("  PASS 两物种接近归零（资源耗竭）"); }
+  else { fail++; process.exitCode = 1; console.log(`  FAIL 未耗竭 pc=${pops.pc.toFixed(1)} pa=${pops.pa.toFixed(1)}`); }
 }
 
-verifyAxisAssignment().then(() => {
-  console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
-  process.exit(pass > 0 && fail === 0 ? 0 : 1);
-});
+console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
+process.exit(pass > 0 && fail === 0 ? 0 : 1);

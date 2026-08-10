@@ -62,6 +62,13 @@ const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回�
 - add-species 的 growthRate/carryingCapacity/deathRate 传**数值**（如 growthRate=0.3），不传键名，代码自动处理
 - add-relation 只需传 type/prey/predator（或 species1/species2），捕食率等系数代码自动生成，无需传
 
+## 竞争/互利场景建模（重要）
+- **竞争（competition）**：两个物种争夺同一有限资源。
+  - 若用户描述"资源有限/耗尽、胜者最终也死亡"（如 Gause 大小草履虫竞争培养液）→ 两个物种都传 **hasLogistic=false**（无自增长，靠竞争系数消耗，最终耗竭归零）
+  - 若用户描述"竞争但各自能维持"（如森林中两种树竞争光照）→ 传 hasLogistic=true（各自有承载上限，竞争只是互相抑制）
+- **互利（mutualism）**：两物种相互促进，通常传 hasLogistic=true
+- 竞争/互利关系只需传 species1/species2，竞争系数自动生成
+
 ## 模型可行性诊断（run-model 返回 feasibility 字段时）
 系统会自动执行"检测→修改→再检测"循环，直到把参数性灭绝修好；只有确认无法通过参数修复（结构上必然灭绝）才会返回 structural-extinction。
 - feasibility.status = "adjusted"：系统自动调整了参数（降低捕食率/调整增长率/容纳量/死亡率等）以消除灭绝，模型可运行。向学生简述系统自动修复了什么
