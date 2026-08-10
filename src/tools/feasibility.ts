@@ -53,10 +53,14 @@ export function ensureFeasible(
     preyOf.set(r.predator, list);
   }
 
-  // 一次模拟：返回灭绝物种 id 列表（100 步后贴地判定灭绝）；无灭绝返回空数组
-  const simulate = (p: Record<string, number>): string[] => {
+  // 一次模拟：返回灭绝物种 id 列表 + 各物种稳定期平均种群。
+  // 灭绝：100 步后贴地判定灭绝（extinct 非空）；无灭绝则 extinct 为空，meanPops 为稳定均值。
+  const simulate = (p: Record<string, number>): { extinct: string[]; meanPops: Record<string, number> } => {
     const pops: Record<string, number> = {};
     for (const s of species) pops[s.id] = p[`${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}0`] ?? s.initial;
+    // 稳定期累加（后 1/4 时间段，用于计算平均种群做生态金字塔检查）
+    const sums: Record<string, number> = {};
+    let counted = 0;
     for (let i = 0; i < STEPS; i++) {
       const d: Record<string, number> = {};
       for (const s of species) {
@@ -85,10 +89,17 @@ export function ensureFeasible(
       }
       if (i > 100) {
         const extinct = species.filter((s) => pops[s.id] <= s.minValue + EXTINCT_EPSILON);
-        if (extinct.length > 0) return extinct.map((s) => s.id);
+        if (extinct.length > 0) return { extinct: extinct.map((s) => s.id), meanPops: {} };
+      }
+      // 记录稳定期（后 1/4）平均种群
+      if (i > STEPS * 3 / 4) {
+        for (const s of species) sums[s.id] = (sums[s.id] ?? 0) + pops[s.id];
+        counted++;
       }
     }
-    return [];
+    const meanPops: Record<string, number> = {};
+    for (const s of species) meanPops[s.id] = counted > 0 ? (sums[s.id] ?? 0) / counted : 0;
+    return { extinct: [], meanPops };
   };
 
   // 灭绝原因分类：灭绝物种是否都有可再生能量来源？
@@ -111,14 +122,29 @@ export function ensureFeasible(
     return "adjustable";
   };
 
+  // 生态金字塔检查：捕食者的稳定数量应显著少于其猎物（数量金字塔）。
+  // 返回不满足的捕食关系列表。这是生态合理性约束（如顶级捕食者不应远多于猎物）。
+  const checkPyramid = (meanPops: Record<string, number>): RelationDef[] => {
+    const violations: RelationDef[] = [];
+    for (const r of relations) {
+      if (r.type !== "predation" || !r.predator || !r.prey) continue;
+      const prey = meanPops[r.prey] ?? 0;
+      const predator = meanPops[r.predator] ?? 0;
+      // 捕食者数量 ≥ 猎物数量 → 违反金字塔（生态上罕见）。要求捕食者 < 猎物。
+      if (prey > 0 && predator >= prey) violations.push(r);
+    }
+    return violations;
+  };
+
   // 针对性自动修复：参数性灭绝时，把参数确定性推向"已知稳定域"（收敛式，避免增量微调不收敛）：
   // - 基底/生产者：高增长率 + 中容纳量（保证再生能力）
   // - 中间营养级（消费者）：中等增长率 + 较低容纳量（避免种群爆炸压死基底）
   // - 顶级捕食者（无 logistic）：较高的自然死亡率（通过 predatorDeathRate 体现）+ 较高转化效率
   // - 所有捕食率：压低（降低消费强度）
   // - 初始值：提升到中高位（避免前期振荡触底）
+  // - 生态金字塔（pyramidViolations）：捕食者数量 ≥ 猎物数量时，提高捕食者死亡率压制其种群
   // 然后重新检测；若仍未稳定，继续逐轮增强力度，直到修好或确认无法修复。
-  const applyFixes = (work: Record<string, number>, extinctIds: string[]): boolean => {
+  const applyFixes = (work: Record<string, number>, extinctIds: string[], pyramidViolations: RelationDef[] = []): boolean => {
     let changed = false;
     // 营养级分类：真正的"消费者"是出现在捕食关系 predator 位置的物种
     // （它们靠吃别人获取能量）；纯生产者 = hasLogistic 且从未作为 predator。
@@ -173,7 +199,16 @@ export function ensureFeasible(
         changed = true;
       }
     }
-    // 灭绝物种的初始值提升到中高位（避免前期触底）；其他物种保持
+    // 生态金字塔修复：捕食者数量 ≥ 猎物数量 → 提高捕食者死亡率（每个违规关系 +25%），
+    // 直到捕食者数量 < 猎物数量。上限 0.5（避免直接把捕食者压死导致灭绝）。
+    for (const r of pyramidViolations) {
+      if (!r.predatorDeathRate) continue;
+      const key = r.predatorDeathRate;
+      if (work[key] !== undefined && work[key] < 0.5) {
+        work[key] = Math.min(work[key] * 1.25, 0.5);
+        changed = true;
+      }
+    }    // 灭绝物种的初始值提升到中高位（避免前期触底）；其他物种保持
     for (const id of extinctIds) {
       const initKey = `${id.charAt(0).toUpperCase()}${id.slice(1)}0`;
       if (work[initKey] !== undefined && work[initKey] < 200) {
@@ -194,45 +229,92 @@ export function ensureFeasible(
     return changed;
   };
 
-  // === 检测 → 修改 → 再检测 loop（直到修好） ===
+  // === 检测 → 修改 → 再检测 loop（直到灭绝与金字塔都满足 / 确认不可修复） ===
+  // 两阶段：阶段1 优先消除灭绝（金字塔约束不参与，避免金字塔修复把捕食者压死误报结构性）；
+  //        阶段2 灭绝消除后，温和修复生态金字塔（捕食者数量 ≥ 猎物数量时提高其死亡率）。
   const work = { ...params };
-  let extinct = simulate(work);
-  if (extinct.length === 0) return { status: "ok", params: work };
+  const MAX_PYRAMID_ROUNDS = 6;
 
-  let adjusted = false;
-  for (let round = 0; round < MAX_ROUNDS; round++) {
-    // 每轮都重新分类：一旦灭绝物种无再生来源 → 结构性必然，参数无法修复
-    if (classifyExtinction(extinct) === "structural") {
-      const names = extinct.map((id) => speciesById.get(id)?.name ?? id);
+  // ---- 阶段 1：消除灭绝 ----
+  let result = simulate(work);
+  if (result.extinct.length === 0) {
+    // 无灭绝：直接进入金字塔阶段
+    result = { extinct: [], meanPops: result.meanPops };
+  } else {
+    let adjusted = false;
+    let stage1Ok = false;
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      if (result.extinct.length > 0 && classifyExtinction(result.extinct) === "structural") {
+        const names = result.extinct.map((id) => speciesById.get(id)?.name ?? id);
+        return {
+          status: "structural-extinction",
+          params: work,
+          message: adjusted
+            ? `已尝试自动调参仍无法避免 ${names.join("、")} 灭绝：该物种无可再生的能量来源（类似鲸落/一次性资源），参数无法修复，可能需要调整模型结构（如添加生产者）。`
+            : `物种 ${names.join("、")} 必然灭绝：系统中不存在可再生的能量来源（无生产者/自增长物种），这是一次性资源系统（类似鲸落），属生态学必然结局，未自动调整参数。`,
+          extinctSpecies: result.extinct,
+        };
+      }
+      if (result.extinct.length === 0) { stage1Ok = true; break; }
+      const changed = applyFixes(work, result.extinct, []);
+      if (!changed) break;
+      adjusted = true;
+      result = simulate(work);
+    }
+    // 阶段1 耗尽仍灭绝 → 结构性（无法通过参数修复）
+    if (!stage1Ok && result.extinct.length > 0) {
+      const names = result.extinct.map((id) => speciesById.get(id)?.name ?? id);
       return {
         status: "structural-extinction",
         params: work,
-        message: adjusted
-          ? `已尝试自动调参仍无法避免 ${names.join("、")} 灭绝：该物种无可再生的能量来源（类似鲸落/一次性资源），参数无法修复，可能需要调整模型结构（如添加生产者）。`
-          : `物种 ${names.join("、")} 必然灭绝：系统中不存在可再生的能量来源（无生产者/自增长物种），这是一次性资源系统（类似鲸落），属生态学必然结局，未自动调整参数。`,
-        extinctSpecies: extinct,
-      };
-    }
-    // 参数性：针对性修改，然后重新检测
-    const changed = applyFixes(work, extinct);
-    if (!changed) break;
-    adjusted = true;
-    extinct = simulate(work);
-    if (extinct.length === 0) {
-      return {
-        status: "adjusted",
-        params: work,
-        message: "已自动调整参数（降低捕食率/提升增长率等）以保证系统可持续运行",
-        extinctSpecies: [],
+        message: `已尝试自动调参（捕食率降至下限 ${MIN_PREDATION}、增长率升至上限）仍无法避免 ${names.join("、")} 灭绝，模型结构可能需要调整（如添加生产者）。`,
+        extinctSpecies: result.extinct,
       };
     }
   }
-  // 调参至边界仍灭绝：参数无法彻底修复，需要结构调整（不运行模型）
-  const names = extinct.map((id) => speciesById.get(id)?.name ?? id);
+
+  // ---- 阶段 2：消除灭绝后，修复生态金字塔 ----
+  // 温和地提高违规捕食者的死亡率，每轮重新检测；若金字塔修复导致灭绝，回退该次修改并接受现状。
+  let adjusted = result.extinct.length > 0 ? true : false;
+  for (let round = 0; round < MAX_PYRAMID_ROUNDS; round++) {
+    const violations = checkPyramid(result.meanPops);
+    if (violations.length === 0) {
+      // 灭绝已消除 + 金字塔满足
+      return {
+        status: adjusted ? "adjusted" : "ok",
+        params: work,
+        ...(adjusted ? { message: "已自动调整参数（降低捕食率/提升增长率/调整死亡率等）以保证系统可持续运行" } : {}),
+        extinctSpecies: [],
+      };
+    }
+    const before = { ...work };
+    const changed = applyFixes(work, [], violations);
+    if (!changed) break;
+    const after = simulate(work);
+    if (after.extinct.length > 0) {
+      // 金字塔修复导致灭绝 → 回退，接受当前（金字塔可能不完美）
+      for (const k of Object.keys(work)) work[k] = before[k];
+      adjusted = true;
+      break;
+    }
+    adjusted = true;
+    result = after;
+  }
+  // 金字塔无法在 6 轮内完全满足（捕食者死亡率已到上限）→ 仍返回 adjusted，但提示金字塔异常
+  const violations = checkPyramid(result.meanPops);
+  if (violations.length > 0) {
+    const vNames = violations.map((r) => `${speciesById.get(r.predator!)?.name ?? r.predator} 数量 ≥ ${speciesById.get(r.prey!)?.name ?? r.prey}`).join("、");
+    return {
+      status: "adjusted",
+      params: work,
+      message: `已自动调整参数使系统稳定，但 ${vNames}（生态金字塔关系异常，捕食者死亡率已调至上限仍无法压制其种群）`,
+      extinctSpecies: [],
+    };
+  }
   return {
-    status: "structural-extinction",
+    status: adjusted ? "adjusted" : "ok",
     params: work,
-    message: `已尝试自动调参（捕食率降至下限 ${MIN_PREDATION}、增长率升至上限）仍无法避免 ${names.join("、")} 灭绝，模型结构可能需要调整（如添加生产者）。`,
-    extinctSpecies: extinct,
+    ...(adjusted ? { message: "已自动调整参数以保证系统可持续运行" } : {}),
+    extinctSpecies: [],
   };
 }

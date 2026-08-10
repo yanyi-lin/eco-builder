@@ -120,5 +120,54 @@ function check(label: string, got: string, expected: string) {
   }
 }
 
+// 场景7: 生态金字塔检查 —— 用户实测模型的修复后参数应满足 兔>狼（捕食者数量<猎物数量）
+//   用 ensureFeasible 修复后的参数直接模拟，验证稳定数量满足金字塔。
+{
+  const DT = 0.045, STEPS = 4000;
+  const species = [
+    { id: "grass", minValue: 0.5, hasLogistic: true, growthRate: "grass_r", carryingCapacity: "grass_K" },
+    { id: "rabbit", minValue: 0.5, hasLogistic: true, growthRate: "rabbit_r", carryingCapacity: "rabbit_K" },
+    { id: "wolf", minValue: 0.5, hasLogistic: false },
+  ] as any[];
+  const relations = [
+    { type: "predation", prey: "grass", predator: "rabbit", predationRate: "grass_rabbit_a", conversionEfficiency: "grass_rabbit_e" },
+    { type: "predation", prey: "rabbit", predator: "wolf", predationRate: "rabbit_wolf_a", conversionEfficiency: "rabbit_wolf_e", predatorDeathRate: "rabbit_wolf_m" },
+  ] as any[];
+  const rawParams: Record<string, number> = { Grass0: 500, Rabbit0: 50, Wolf0: 10, grass_r: 0.5, grass_K: 1000, rabbit_r: 0.3, rabbit_K: 200, grass_rabbit_a: 0.008, grass_rabbit_e: 0.68, rabbit_wolf_a: 0.008, rabbit_wolf_e: 0.68, rabbit_wolf_m: 0.08 };
+  const res = ensureFeasible(species, relations, rawParams);
+  const p = res.params;
+  // 模拟稳定期均值
+  const pops: Record<string, number> = {};
+  for (const s of species) pops[s.id] = p[`${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}0`];
+  const sums: Record<string, number> = {}; let counted = 0;
+  for (let i = 0; i < STEPS; i++) {
+    const d: Record<string, number> = {};
+    for (const s of species) {
+      let rate = 0;
+      if (s.hasLogistic) rate += (p[s.growthRate] ?? 0) * pops[s.id] * (1 - pops[s.id] / (p[s.carryingCapacity] ?? 1));
+      if (s.deathRate) rate -= (p[s.deathRate] ?? 0) * pops[s.id];
+      d[s.id] = rate;
+    }
+    for (const r of relations) {
+      const a = p[r.predationRate] ?? 0, e = p[r.conversionEfficiency] ?? 0;
+      const preyN = pops[r.prey] ?? 0, predN = pops[r.predator] ?? 0;
+      d[r.prey] = (d[r.prey] ?? 0) - a * preyN * predN;
+      d[r.predator] = (d[r.predator] ?? 0) + e * a * preyN * predN;
+      if (r.predatorDeathRate) d[r.predator] = (d[r.predator] ?? 0) - (p[r.predatorDeathRate] ?? 0) * predN;
+    }
+    for (const s of species) {
+      const next = pops[s.id] + (d[s.id] ?? 0) * DT;
+      pops[s.id] = isFinite(next) ? Math.max(next, s.minValue) : s.minValue;
+    }
+    if (i > STEPS * 3 / 4) { for (const s of species) sums[s.id] = (sums[s.id] ?? 0) + pops[s.id]; counted++; }
+  }
+  const mean = (id: string) => counted > 0 ? (sums[id] ?? 0) / counted : 0;
+  const rabbit = mean("rabbit"), wolf = mean("wolf"), grass = mean("grass");
+  console.log(`  [金字塔检查] grass=${grass.toFixed(0)} rabbit=${rabbit.toFixed(0)} wolf=${wolf.toFixed(0)}  rabbit>wolf=${rabbit > wolf}`);
+  // 金字塔：捕食者 < 猎物（狼<兔），且兔>狼是用户明确要求
+  if (rabbit > wolf) { pass++; console.log("  PASS 生态金字塔满足（兔 > 狼）"); }
+  else { fail++; process.exitCode = 1; console.log("  FAIL 金字塔不满足（兔 ≤ 狼）"); }
+}
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 process.exit(pass > 0 && fail === 0 ? 0 : 1);
