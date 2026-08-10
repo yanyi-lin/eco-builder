@@ -41,7 +41,9 @@ export function CustomLegend({ spec, hiddenStates, onToggle }: CustomLegendProps
         );
       })}
       <div className="note">
-        ※ 植物左轴，雪兔和猞猁右轴。点击图例可隐藏/显示曲线，再次点击恢复。
+        ※ {spec.species.filter((s) => s.axis === "left").map((s) => s.name).join("、") || "左侧"}物种在左轴，
+        {spec.species.filter((s) => s.axis === "right").map((s) => s.name).join("、") || "其他"}物种在右轴。
+        点击图例可隐藏/显示曲线，再次点击恢复。
       </div>
     </div>
   );

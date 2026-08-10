@@ -193,5 +193,58 @@ function check(label: string, got: string, expected: string) {
   else { pass++; console.log("  PASS message 无'添加生产者'诱导"); }
 }
 
-console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
-process.exit(pass > 0 && fail === 0 ? 0 : 1);
+// 场景9: buildModel 轴分配——先添加顶级捕食者（狼）时，左轴应归第一个生产者（草）
+//   旧 bug：左轴固定给"第一个添加的物种"（狼），导致捕食者占左轴、缩放错位。
+{
+  const { buildModel } = await import("../src/tools/builderTools");
+  const state = {
+    species: [
+      { id: "wolf", name: "狼", color: "#111", axis: "right", minValue: 0.5, initial: 10, hasLogistic: false },
+      { id: "grass", name: "草", color: "#2e7d32", axis: "right", minValue: 0.5, initial: 80, hasLogistic: true, growthRate: "grass_r", carryingCapacity: "grass_K" },
+      { id: "rabbit", name: "兔", color: "#e53935", axis: "right", minValue: 0.5, initial: 50, hasLogistic: true, growthRate: "rabbit_r", carryingCapacity: "rabbit_K" },
+    ],
+    relations: [
+      { type: "predation", prey: "grass", predator: "rabbit", predationRate: "grass_rabbit_a", conversionEfficiency: "grass_rabbit_e" },
+      { type: "predation", prey: "rabbit", predator: "wolf", predationRate: "rabbit_wolf_a", conversionEfficiency: "rabbit_wolf_e", predatorDeathRate: "rabbit_wolf_m" },
+    ],
+    params: {},
+    paramMeta: {},
+  } as any;
+  const model = buildModel(state, "轴分配测试", "");
+  if (!model) { fail++; process.exitCode = 1; console.log("FAIL 构建失败"); }
+  else {
+    const leftSpecies = model.species.filter((s) => s.axis === "left").map((s) => s.name);
+    const ok = leftSpecies.length === 1 && leftSpecies[0] === "草";
+    if (ok) { pass++; console.log("PASS 左轴归生产者(草):", leftSpecies.join(",")); }
+    else { fail++; process.exitCode = 1; console.log("FAIL 左轴分配错误:", leftSpecies.join(",")); }
+  }
+}
+
+// 场景9: buildModel 轴分配——先添加顶级捕食者（狼）时，左轴应归第一个生产者（草）
+//   旧 bug：左轴固定给"第一个添加的物种"（狼），导致捕食者占左轴、缩放错位。
+async function verifyAxisAssignment() {
+  const { buildModel } = await import("../src/tools/builderTools");
+  const state = {
+    species: [
+      { id: "wolf", name: "狼", color: "#111", axis: "right", minValue: 0.5, initial: 10, hasLogistic: false },
+      { id: "grass", name: "草", color: "#2e7d32", axis: "right", minValue: 0.5, initial: 80, hasLogistic: true, growthRate: "grass_r", carryingCapacity: "grass_K" },
+      { id: "rabbit", name: "兔", color: "#e53935", axis: "right", minValue: 0.5, initial: 50, hasLogistic: true, growthRate: "rabbit_r", carryingCapacity: "rabbit_K" },
+    ],
+    relations: [
+      { type: "predation", prey: "grass", predator: "rabbit", predationRate: "grass_rabbit_a", conversionEfficiency: "grass_rabbit_e" },
+      { type: "predation", prey: "rabbit", predator: "wolf", predationRate: "rabbit_wolf_a", conversionEfficiency: "rabbit_wolf_e", predatorDeathRate: "rabbit_wolf_m" },
+    ],
+    params: {},
+    paramMeta: {},
+  } as any;
+  const model = buildModel(state, "轴分配测试", "");
+  if (!model) { fail++; process.exitCode = 1; console.log("FAIL 构建失败"); return; }
+  const leftSpecies = model.species.filter((s) => s.axis === "left").map((s) => s.name);
+  if (leftSpecies.length === 1 && leftSpecies[0] === "草") { pass++; console.log("PASS 左轴归生产者(草):", leftSpecies.join(",")); }
+  else { fail++; process.exitCode = 1; console.log("FAIL 左轴分配错误:", leftSpecies.join(",")); }
+}
+
+verifyAxisAssignment().then(() => {
+  console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
+  process.exit(pass > 0 && fail === 0 ? 0 : 1);
+});

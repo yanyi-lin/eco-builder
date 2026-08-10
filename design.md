@@ -220,6 +220,18 @@ npx wrangler deploy         # 部署
 - 修复只动与灭绝相关的参数（压低消费者/捕食率、增强基底），避免"增强灭绝物种却引爆其天敌"的连锁灭绝（旧增量策略的缺陷）
 - **生态金字塔约束**（用户实测反馈：狼 239 ≫ 兔 92 系统仍"稳定"但生态不合理）：稳定后捕食者数量必须 < 猎物数量（数量金字塔），否则自动提高捕食者死亡率（阶段 2）
 
+### 9.3 开放式构建适配（硬编码排查，subagent 对抗审查）
+
+结论：**模拟/微分方程/图表/AI 工具链对任意 N 物种/任意关系通用**（derivatives.ts 按 spec 动态生成；图表按 spec.species map），自定义模型与内置 lotkaVolterra3 共享同一套代码。已修复的隐性"草兔狼"假设：
+
+- **轴分配**：左轴不再固定给"第一个添加的物种"，改为第一个 hasLogistic 物种（生产者基底），避免先加顶级捕食者时其占左轴（`builderTools.ts` buildModel）
+- **轴范围**：改用可行性修复后的参数计算（修复前会导致曲线顶到轴上沿）
+- **可行性预检**：simulate 加入 competition/mutualism 项，与 derivatives.ts 一致（原仅捕食关系）
+- **内置模型死键**：lotkaVolterra3 的 P0/H0/L0 改为 Plant0/Hare0/Lynx0（与 `<Id>0` 约定一致，修复 Eco-Tuner 初始滑块无效）
+- **UI 文案动态化**：App 标题用 spec.name；CustomLegend 轴说明按实际左右轴物种生成；AI 空态示例文案通用化
+
+未修（改进项，非 bug）：图表双轴压缩（>4 物种同右轴时小物种难读）、InfoModal 为项目级"关于"说明不随模型变。
+
 ## 10. 待办 / 下一步
 
 - [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）

@@ -56,7 +56,9 @@ export function App() {
       <div className="dashboard">
         <div className="title-row">
           <h1>
-            {mode === "build" ? "生态模型构建器" : "植物、雪兔和猞猁种群的周期性波动"}
+            {mode === "build"
+              ? "生态模型构建器"
+              : spec?.name || "生态模型模拟"}
           </h1>
           <div className="title-actions">
             {mode === "simulate" ? (

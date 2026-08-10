@@ -472,25 +472,21 @@ export function buildModel(
     return out;
   });
 
-  // 分配 Y 轴：第一个物种 left，其他 right
-  const species = enrichedSpecies.map((sp, i) => ({
+  // 分配 Y 轴：第一个 hasLogistic 的物种（生产者/自增长基底）占左轴，其余右轴。
+  // 避免"先添加顶级捕食者"导致捕食者占左轴、语义与缩放错位（如森林中狼不应占左轴）。
+  let leftIndex = enrichedSpecies.findIndex((s) => s.hasLogistic);
+  if (leftIndex === -1) leftIndex = 0; // 无自增长物种时退化为第一个物种
+  const speciesWithAxis = enrichedSpecies.map((sp, i) => ({
     ...sp,
-    axis: (i === 0 ? "left" : "right") as "left" | "right",
+    axis: (i === leftIndex ? "left" : "right") as "left" | "right",
   }));
-
-  // 根据初始值/容纳量动态计算 Y 轴范围（避免自定义模型数值超出固定 0-350/0-100 范围）
-  const leftMax = calcAxisMax(species[0], params, 1.5);
-  const rightSpecies = species.slice(1);
-  const rightMax = rightSpecies.length > 0
-    ? Math.max(...rightSpecies.map((s) => calcAxisMax(s, params, 1.5)))
-    : 100;
 
   // === 数值可行性校验（硬保证：不因默认/LLM 参数灭绝）===
   // 快速模拟 ~4000 步（约 180 时间单位，覆盖 10+ 个振荡周期），
   // 若任一物种触底（≤ minValue）则进入"检测→修改→再检测"修复循环：
   // 参数性可修复（有能量来源但参数极端）→ 自动调参直到修好（adjusted）；
   // 结构性必然（如鲸落：无生产者/一次性资源，或调参仍无法避免）→ 不运行，返回诊断（structural-extinction）。
-  const feasible = ensureFeasible(species, relations, params);
+  const feasible = ensureFeasible(speciesWithAxis, relations, params);
   if (feasible.status === "adjusted") {
     console.warn("[builder] 模型参数不可行，已自动调整:", feasible.message);
   } else if (feasible.status === "structural-extinction") {
@@ -498,11 +494,18 @@ export function buildModel(
   }
   const finalParams = feasible.params;
 
+  // 轴范围用修复后的参数计算（避免可行性调参改大 K/initial 后轴上限与真实种群不匹配、曲线顶到上沿）
+  const leftMax = calcAxisMax(speciesWithAxis[leftIndex], finalParams, 1.5);
+  const rightSpecies = speciesWithAxis.filter((_, i) => i !== leftIndex);
+  const rightMax = rightSpecies.length > 0
+    ? Math.max(...rightSpecies.map((s) => calcAxisMax(s, finalParams, 1.5)))
+    : 100;
+
   return {
     id: `custom_${crypto.randomUUID?.() ?? Date.now().toString(36)}`,
     name,
     description,
-    species,
+    species: speciesWithAxis,
     relations,
     params: finalParams,
     paramMeta,
@@ -513,7 +516,7 @@ export function buildModel(
       ...(feasible.extinctSpecies ? { extinctSpecies: feasible.extinctSpecies } : {}),
     },
     axisRanges: {
-      left: { min: 0, max: leftMax, step: niceStep(leftMax), title: species[0]?.name || "种群密度", color: species[0]?.color || "#2e7d32" },
+      left: { min: 0, max: leftMax, step: niceStep(leftMax), title: speciesWithAxis[leftIndex]?.name || "种群密度", color: speciesWithAxis[leftIndex]?.color || "#2e7d32" },
       right: { min: 0, max: rightMax, step: niceStep(rightMax), title: "其他种群密度", color: "#1e88e5" },
     },
   };

@@ -72,15 +72,34 @@ export function ensureFeasible(
         d[s.id] = rate;
       }
       for (const r of relations) {
-        if (r.type !== "predation") continue;
-        const a = p[r.predationRate ?? ""] ?? 0;
-        const e = p[r.conversionEfficiency ?? ""] ?? 0;
-        const preyN = pops[r.prey ?? ""] ?? 0;
-        const predN = pops[r.predator ?? ""] ?? 0;
-        d[r.prey ?? ""] = (d[r.prey ?? ""] ?? 0) - a * preyN * predN;
-        d[r.predator ?? ""] = (d[r.predator ?? ""] ?? 0) + e * a * preyN * predN;
-        if (r.predatorDeathRate) {
-          d[r.predator ?? ""] = (d[r.predator ?? ""] ?? 0) - (p[r.predatorDeathRate] ?? 0) * predN;
+        if (r.type === "predation") {
+          const a = p[r.predationRate ?? ""] ?? 0;
+          const e = p[r.conversionEfficiency ?? ""] ?? 0;
+          const preyN = pops[r.prey ?? ""] ?? 0;
+          const predN = pops[r.predator ?? ""] ?? 0;
+          d[r.prey ?? ""] = (d[r.prey ?? ""] ?? 0) - a * preyN * predN;
+          d[r.predator ?? ""] = (d[r.predator ?? ""] ?? 0) + e * a * preyN * predN;
+          if (r.predatorDeathRate) {
+            d[r.predator ?? ""] = (d[r.predator ?? ""] ?? 0) - (p[r.predatorDeathRate] ?? 0) * predN;
+          }
+        } else if (r.type === "competition") {
+          // 竞争：species1/species2 相互抑制（与 derivatives.ts 一致）
+          const a1 = p[r.coeff1 ?? ""] ?? 0;
+          const a2 = p[r.coeff2 ?? ""] ?? 0;
+          const n1 = pops[r.species1 ?? ""] ?? 0;
+          const n2 = pops[r.species2 ?? ""] ?? 0;
+          const interaction = n1 * n2;
+          d[r.species1 ?? ""] = (d[r.species1 ?? ""] ?? 0) - a1 * interaction;
+          d[r.species2 ?? ""] = (d[r.species2 ?? ""] ?? 0) - a2 * interaction;
+        } else if (r.type === "mutualism") {
+          // 互利：species1/species2 相互促进（与 derivatives.ts 一致）
+          const b1 = p[r.coeff1 ?? ""] ?? 0;
+          const b2 = p[r.coeff2 ?? ""] ?? 0;
+          const n1 = pops[r.species1 ?? ""] ?? 0;
+          const n2 = pops[r.species2 ?? ""] ?? 0;
+          const interaction = n1 * n2;
+          d[r.species1 ?? ""] = (d[r.species1 ?? ""] ?? 0) + b1 * interaction;
+          d[r.species2 ?? ""] = (d[r.species2 ?? ""] ?? 0) + b2 * interaction;
         }
       }
       for (const s of species) {
