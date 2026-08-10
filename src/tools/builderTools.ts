@@ -230,8 +230,12 @@ export function addRelationParams(
     const prey = relation.prey ?? "prey";
     const predator = relation.predator ?? "predator";
     // 自动生成捕食参数键：<prey>_<pred>_a / _e / _m
+    // 关键：把生成的键写回 relation 对象（derivatives 读 params[rel.predationRate]，
+    // 若 relation.predationRate 为 undefined 则捕食项恒为 0 → 消费者只剩衰减 → 灭绝）
     const predationRate = relation.predationRate ?? `${prey}_${predator}_a`;
     const conversionEfficiency = relation.conversionEfficiency ?? `${prey}_${predator}_e`;
+    relation.predationRate = predationRate;
+    relation.conversionEfficiency = conversionEfficiency;
 
     // 捕食率 clamp 到安全范围（敏感性分析：a>=0.018 时猎物在 ~136 步内灭绝，
     // 0.015 留安全裕度）。默认 0.01，与经典 LV 模型量级一致。
@@ -290,9 +294,11 @@ export function addRelationParams(
   } else if (relation.type === "competition") {
     const sp1 = relation.species1 ?? "sp1";
     const sp2 = relation.species2 ?? "sp2";
-    // 自动生成竞争参数键：<sp1>_<sp2>_c1 / _c2
+    // 自动生成竞争参数键：<sp1>_<sp2>_c1 / _c2（写回 relation，derivatives 依赖）
     const coeff1 = relation.coeff1 ?? `${sp1}_${sp2}_c1`;
     const coeff2 = relation.coeff2 ?? `${sp1}_${sp2}_c2`;
+    relation.coeff1 = coeff1;
+    relation.coeff2 = coeff2;
 
     params[coeff1] = params[coeff1] ?? 0.005;
     params[coeff2] = params[coeff2] ?? 0.005;
@@ -319,9 +325,11 @@ export function addRelationParams(
   } else if (relation.type === "mutualism") {
     const sp1 = relation.species1 ?? "sp1";
     const sp2 = relation.species2 ?? "sp2";
-    // 自动生成互利参数键：<sp1>_<sp2>_m1 / _m2
+    // 自动生成互利参数键：<sp1>_<sp2>_m1 / _m2（写回 relation，derivatives 依赖）
     const coeff1 = relation.coeff1 ?? `${sp1}_${sp2}_m1`;
     const coeff2 = relation.coeff2 ?? `${sp1}_${sp2}_m2`;
+    relation.coeff1 = coeff1;
+    relation.coeff2 = coeff2;
 
     params[coeff1] = params[coeff1] ?? 0.003;
     params[coeff2] = params[coeff2] ?? 0.003;
@@ -460,14 +468,24 @@ export function buildModel(
   const rightMax = rightSpecies.length > 0
     ? Math.max(...rightSpecies.map((s) => calcAxisMax(s, params, 1.5)))
     : 100;
-  
+
+  // === 数值可行性校验（硬保证：不因默认/LLM 参数灭绝）===
+  // 快速模拟 ~4000 步（约 180 时间单位，覆盖 10+ 个振荡周期），
+  // 若任一物种触底（≤ minValue）则说明参数不可行，逐步降低捕食率重试。
+  const feasible = ensureFeasible(species, relations, params);
+  if (!feasible.ok) {
+    // 参数已调至最小仍不可行，返回原样（至少保证有界运行）
+    console.warn("[builder] 模型参数不可行，已自动调整:", feasible.message);
+  }
+  const finalParams = feasible.params;
+
   return {
-    id: `custom_${Date.now()}`,
+    id: `custom_${crypto.randomUUID?.() ?? Date.now().toString(36)}`,
     name,
     description,
     species,
     relations,
-    params,
+    params: finalParams,
     paramMeta,
     dt: params.dt || 0.045,
     axisRanges: {
@@ -475,6 +493,91 @@ export function buildModel(
       right: { min: 0, max: rightMax, step: niceStep(rightMax), title: "其他种群密度", color: "#1e88e5" },
     },
   };
+}
+
+/**
+ * 数值可行性校验：模拟运行，若有物种灭绝则降低捕食率重试。
+ * 返回调整后的 params（若无需调整则原样返回）。
+ */
+function ensureFeasible(
+  species: SpeciesDef[],
+  relations: RelationDef[],
+  params: Record<string, number>,
+): { ok: boolean; params: Record<string, number>; message?: string } {
+  const DT = 0.045;
+  const STEPS = 4000;
+  const MIN_PREDATION = 0.002;
+
+  // 收集所有捕食率键（自动生成的 <prey>_<pred>_a）
+  const predationKeys = relations
+    .filter((r) => r.type === "predation" && r.predationRate)
+    .map((r) => r.predationRate!);
+
+  // 一次模拟：返回是否所有物种存活（没有物种在 100 步后触底）
+  const simulate = (p: Record<string, number>): boolean => {
+    const pops: Record<string, number> = {};
+    for (const s of species) pops[s.id] = p[`${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}0`] ?? s.initial;
+    let t = 0;
+    for (let i = 0; i < STEPS; i++) {
+      // 简化 Euler（仅 predation + logistic，与 derivatives 一致）
+      const d: Record<string, number> = {};
+      for (const s of species) {
+        let rate = 0;
+        if (s.hasLogistic && s.growthRate && s.carryingCapacity) {
+          rate += (p[s.growthRate] ?? 0) * pops[s.id] * (1 - pops[s.id] / (p[s.carryingCapacity] ?? 1));
+        }
+        if (s.deathRate) rate -= (p[s.deathRate] ?? 0) * pops[s.id];
+        d[s.id] = rate;
+      }
+      for (const r of relations) {
+        if (r.type !== "predation") continue;
+        const a = p[r.predationRate ?? ""] ?? 0;
+        const e = p[r.conversionEfficiency ?? ""] ?? 0;
+        const preyN = pops[r.prey ?? ""] ?? 0;
+        const predN = pops[r.predator ?? ""] ?? 0;
+        d[r.prey ?? ""] = (d[r.prey ?? ""] ?? 0) - a * preyN * predN;
+        d[r.predator ?? ""] = (d[r.predator ?? ""] ?? 0) + e * a * preyN * predN;
+        if (r.predatorDeathRate) {
+          d[r.predator ?? ""] = (d[r.predator ?? ""] ?? 0) - (p[r.predatorDeathRate] ?? 0) * predN;
+        }
+      }
+      for (const s of species) {
+        const next = pops[s.id] + (d[s.id] ?? 0) * DT;
+        pops[s.id] = isFinite(next) ? Math.max(next, s.minValue) : s.minValue;
+      }
+      t = i;
+      // 100 步后若任一物种仍贴地（≤ minValue + ε），判定灭绝
+      if (t > 100 && species.some((s) => pops[s.id] <= s.minValue + 0.01)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // 尝试逐步降低捕食率（最多 5 轮），直到可行或到下限
+  const work = { ...params };
+  for (let round = 0; round < 6; round++) {
+    if (simulate(work)) {
+      return { ok: true, params: work };
+    }
+    // 降低所有捕食率 30%，并提高转化效率 20%（补偿食物获取）
+    let changed = false;
+    for (const k of predationKeys) {
+      if (work[k] !== undefined && work[k] > MIN_PREDATION) {
+        work[k] = Math.max(work[k] * 0.7, MIN_PREDATION);
+        changed = true;
+      }
+    }
+    // 同时提升资源型猎物的增长率（增强生产者再生）
+    for (const s of species) {
+      if (s.hasLogistic && s.growthRate && work[s.growthRate] !== undefined && work[s.growthRate] < 0.6) {
+        work[s.growthRate] = Math.min(work[s.growthRate] * 1.3, 0.6);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  return { ok: false, params: work, message: "捕食率已降至下限仍无法避免灭绝" };
 }
 
 /** 计算单个物种的轴上限：取 initial 与 K（容纳量）的较大值，留出余量 */
@@ -515,7 +618,15 @@ export async function executeBuilderTool(
     
     case "add-species": {
       const id = args.id as string;
-      const hasLogistic = (args.hasLogistic as boolean) ?? false;
+      // id 校验：ASCII 小写字母开头，仅字母数字下划线（中文/混用大小写会导致关系引用断裂、initKey 碰撞）
+      if (!/^[a-z][a-z0-9_]*$/.test(id ?? "")) {
+        return { error: `物种 id "${id}" 非法：必须是小写英文开头（如 grass/rabbit/fox），仅含字母数字下划线` };
+      }
+      if (api.state.species.some((s) => s.id === id)) {
+        return { error: `物种 "${id}" 已存在，请勿重复添加` };
+      }
+      // hasLogistic 严格布尔校验（LLM 传字符串 "false" 是 truthy，需拦截）
+      const hasLogistic = args.hasLogistic === true;
       const hasDeathRate = args.deathRate !== undefined;
       // 自动生成唯一参数键（LLM 无需提供键名，避免冲突/缺失导致 NaN）
       const keys = autoSpeciesKeys(id, hasLogistic, hasDeathRate);
@@ -523,14 +634,19 @@ export async function executeBuilderTool(
       const color =
         (args.color as string) ??
         SPECIES_COLORS[api.state.species.length % SPECIES_COLORS.length];
+      // initial clamp 到 [1, 500]（LLM 可能传 10000/0 等极端值）
+      const initial = clampNum(
+        typeof args.initial === "number" ? args.initial : 30,
+        1,
+        500,
+      );
       const species: SpeciesDef = {
         id,
         name: args.name as string,
         color,
         axis: "right",
         minValue: 0.5,
-        // 用 ?? 而非 ||，避免 initial=0 时被短路为 30
-        initial: (args.initial as number) ?? 30,
+        initial,
         hasLogistic,
         growthRate: keys.growthRate,
         carryingCapacity: keys.carryingCapacity,
@@ -551,7 +667,7 @@ export async function executeBuilderTool(
         overrides[keys.deathRate] = clampNum(args.deathRate, 0.02, 0.2);
       }
       if (Object.keys(overrides).length > 0) {
-        api.setParams({ ...api.state.params, ...overrides });
+        api.setParams({ ...overrides });
       }
       return { success: true, speciesId: id };
     }
@@ -561,6 +677,25 @@ export async function executeBuilderTool(
       const relType = args.type as string;
       if (relType !== "predation" && relType !== "competition" && relType !== "mutualism") {
         return { error: `非法关系类型: ${relType ?? "undefined"}` };
+      }
+      const speciesIds = new Set(api.state.species.map((s) => s.id));
+      if (relType === "predation") {
+        // 捕食关系必须提供 prey+predator 且存在于已添加物种（缺失时关系静默失效 → 消费者灭绝）
+        const prey = args.prey as string | undefined;
+        const predator = args.predator as string | undefined;
+        if (!prey || !predator) {
+          return { error: "捕食关系必须同时提供 prey（被捕食者）和 predator（捕食者）字段，且 id 要与 add-species 一致" };
+        }
+        if (!speciesIds.has(prey)) return { error: `被捕食者 "${prey}" 不在已添加物种列表中，请先 add-species` };
+        if (!speciesIds.has(predator)) return { error: `捕食者 "${predator}" 不在已添加物种列表中，请先 add-species` };
+      } else {
+        const sp1 = args.species1 as string | undefined;
+        const sp2 = args.species2 as string | undefined;
+        if (!sp1 || !sp2) {
+          return { error: "竞争/互利关系必须提供 species1 和 species2 字段" };
+        }
+        if (!speciesIds.has(sp1)) return { error: `物种 "${sp1}" 不在已添加物种列表中` };
+        if (!speciesIds.has(sp2)) return { error: `物种 "${sp2}" 不在已添加物种列表中` };
       }
       const relation: RelationDef = {
         type: relType as RelationType,

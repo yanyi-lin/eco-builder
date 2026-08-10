@@ -124,7 +124,8 @@ export function useEcoBuilder(
     removeSpecies,
     addRelation,
     removeRelation,
-    setParams: (p) => setParams(p),
+    // 函数式合并：避免陈旧快照整体替换丢掉已生成的参数键（如 initKey）
+    setParams: (p) => setParams((prev) => ({ ...prev, ...p })),
     buildAndRun: (spec) => {
       if (onBuildAndRun) onBuildAndRun(spec);
     },
