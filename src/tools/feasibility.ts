@@ -5,6 +5,7 @@
 // 注意：本模块为纯函数（不依赖 React/Worker），可直接被 node 测试脚本引用。
 
 import type { SpeciesDef, RelationDef } from "../eco/types";
+import { computeStep } from "../eco/computeStep";
 
 /** 可行性状态 */
 export type FeasibilityStatus = "ok" | "adjusted" | "structural-extinction";
@@ -55,6 +56,7 @@ export function ensureFeasible(
 
   // 一次模拟：返回灭绝物种 id 列表 + 各物种稳定期平均种群。
   // 灭绝：100 步后贴地判定灭绝（extinct 非空）；无灭绝则 extinct 为空，meanPops 为稳定均值。
+  // 使用共享的 computeStep 函数确保与 derivatives.ts 逻辑完全一致。
   const simulate = (p: Record<string, number>): { extinct: string[]; meanPops: Record<string, number> } => {
     const pops: Record<string, number> = {};
     for (const s of species) pops[s.id] = p[`${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}0`] ?? s.initial;
@@ -62,57 +64,10 @@ export function ensureFeasible(
     const sums: Record<string, number> = {};
     let counted = 0;
     for (let i = 0; i < STEPS; i++) {
-      const d: Record<string, number> = {};
-      for (const s of species) {
-        let rate = 0;
-        if (s.hasLogistic && s.growthRate && s.carryingCapacity) {
-          rate += (p[s.growthRate] ?? 0) * pops[s.id] * (1 - pops[s.id] / (p[s.carryingCapacity] ?? 1));
-        }
-        if (s.deathRate) rate -= (p[s.deathRate] ?? 0) * pops[s.id];
-        d[s.id] = rate;
-      }
-      for (const r of relations) {
-        if (r.type === "predation") {
-          const a = p[r.predationRate ?? ""] ?? 0;
-          const e = p[r.conversionEfficiency ?? ""] ?? 0;
-          const preyN = pops[r.prey ?? ""] ?? 0;
-          const predN = pops[r.predator ?? ""] ?? 0;
-          d[r.prey ?? ""] = (d[r.prey ?? ""] ?? 0) - a * preyN * predN;
-          d[r.predator ?? ""] = (d[r.predator ?? ""] ?? 0) + e * a * preyN * predN;
-          if (r.predatorDeathRate) {
-            d[r.predator ?? ""] = (d[r.predator ?? ""] ?? 0) - (p[r.predatorDeathRate] ?? 0) * predN;
-          }
-        } else if (r.type === "competition") {
-          // 竞争：species1/species2 相互抑制（与 derivatives.ts 一致）
-          const a1 = p[r.coeff1 ?? ""] ?? 0;
-          const a2 = p[r.coeff2 ?? ""] ?? 0;
-          const n1 = pops[r.species1 ?? ""] ?? 0;
-          const n2 = pops[r.species2 ?? ""] ?? 0;
-          const interaction = n1 * n2;
-          d[r.species1 ?? ""] = (d[r.species1 ?? ""] ?? 0) - a1 * interaction;
-          d[r.species2 ?? ""] = (d[r.species2 ?? ""] ?? 0) - a2 * interaction;
-        } else if (r.type === "mutualism") {
-          // 互利：species1/species2 相互促进（与 derivatives.ts 一致，含饱和项防发散）
-          const b1 = p[r.coeff1 ?? ""] ?? 0;
-          const b2 = p[r.coeff2 ?? ""] ?? 0;
-          const n1 = pops[r.species1 ?? ""] ?? 0;
-          const n2 = pops[r.species2 ?? ""] ?? 0;
-          // 饱和项：β·N1·N2/(1 + h·N1·N2)，h 取两物种 K 倒数量级，防双线性发散
-          const s1 = speciesById.get(r.species1 ?? "");
-          const s2 = speciesById.get(r.species2 ?? "");
-          const K1 = s1?.carryingCapacity ? (p[s1.carryingCapacity] ?? 200) : 200;
-          const K2 = s2?.carryingCapacity ? (p[s2.carryingCapacity] ?? 200) : 200;
-          const h = 1 / (K1 * K2);
-          const raw = n1 * n2;
-          const interaction = raw / (1 + h * raw);
-          d[r.species1 ?? ""] = (d[r.species1 ?? ""] ?? 0) + b1 * interaction;
-          d[r.species2 ?? ""] = (d[r.species2 ?? ""] ?? 0) + b2 * interaction;
-        }
-      }
-      for (const s of species) {
-        const next = pops[s.id] + (d[s.id] ?? 0) * DT;
-        pops[s.id] = isFinite(next) ? Math.max(next, s.minValue) : s.minValue;
-      }
+      // 委托给共享的 computeStep，消除方程重复
+      const nextPops = computeStep(species, relations, p, pops, DT);
+      for (const s of species) pops[s.id] = nextPops[s.id] ?? s.minValue;
+      
       if (i > 100) {
         const extinct = species.filter((s) => pops[s.id] <= s.minValue + EXTINCT_EPSILON);
         if (extinct.length > 0) return { extinct: extinct.map((s) => s.id), meanPops: {} };

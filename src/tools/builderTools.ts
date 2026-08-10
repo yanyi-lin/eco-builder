@@ -34,6 +34,20 @@ export interface BuilderState {
   paramMeta: Record<string, ParamMeta>;
 }
 
+/** 模块级缓存：避免 build-model + run-model 重复计算 buildModel（含 ensureFeasible） */
+let _buildCache: { key: string; model: EcoModelSpec } | null = null;
+
+/** 生成缓存 key（基于物种+关系+参数的哈希） */
+function buildCacheKey(state: BuilderState, name?: string, description?: string): string {
+  return JSON.stringify({
+    species: state.species.map(s => s.id),
+    relations: state.relations.map(r => `${r.type}-${r.prey ?? r.species1}-${r.predator ?? r.species2}`),
+    params: state.params,
+    name,
+    description,
+  });
+}
+
 /** Builder API */
 export interface BuilderApi {
   state: BuilderState;
@@ -650,6 +664,10 @@ export async function executeBuilderTool(
         }
         if (!speciesIds.has(prey)) return { error: `被捕食者 "${prey}" 不在已添加物种列表中，请先 add-species` };
         if (!speciesIds.has(predator)) return { error: `捕食者 "${predator}" 不在已添加物种列表中，请先 add-species` };
+        // 阻止自捕食（prey === predator），数学上不会崩溃但语义荒谬
+        if (prey === predator) {
+          return { error: `不允许自捕食关系：prey 和 predator 不能是同一物种 "${prey}"` };
+        }
       } else {
         const sp1 = args.species1 as string | undefined;
         const sp2 = args.species2 as string | undefined;
@@ -688,25 +706,50 @@ export async function executeBuilderTool(
         params: api.state.params,
       };
     
-    case "build-model":
-      const model = buildModel(
-        api.state,
-        args.name as string || "自定义模型",
-        args.description as string || ""
-      );
+    case "build-model": {
+      const cacheKey = buildCacheKey(api.state, args.name as string, args.description as string);
+      let model: EcoModelSpec | null = null;
+      
+      // 检查模块级缓存
+      if (_buildCache?.key === cacheKey) {
+        model = _buildCache.model;
+      } else {
+        model = buildModel(
+          api.state,
+          args.name as string || "自定义模型",
+          args.description as string || ""
+        );
+        if (model) {
+          _buildCache = { key: cacheKey, model };
+        }
+      }
+      
       if (!model) return { error: "构建失败：没有物种" };
       return {
         success: true,
         modelId: model.id,
         feasibility: model.feasibility,
       };
-    
-    case "run-model":
-      const builtModel = buildModel(
-        api.state,
-        args.name as string || "自定义模型",
-        args.description as string || ""
-      );
+    }
+
+    case "run-model": {
+      const cacheKey = buildCacheKey(api.state, args.name as string, args.description as string);
+      let builtModel: EcoModelSpec | null = null;
+      
+      // 检查模块级缓存，避免 build-model + run-model 重复计算
+      if (_buildCache?.key === cacheKey) {
+        builtModel = _buildCache.model;
+      } else {
+        builtModel = buildModel(
+          api.state,
+          args.name as string || "自定义模型",
+          args.description as string || ""
+        );
+        if (builtModel) {
+          _buildCache = { key: cacheKey, model: builtModel };
+        }
+      }
+      
       if (!builtModel) return { error: "构建失败：没有物种" };
       // 结构性必然灭绝：不运行、不切出构建模式，返回中性诊断（不诱导 agent 添加物种）
       if (builtModel.feasibility?.status === "structural-extinction") {
@@ -730,7 +773,8 @@ export async function executeBuilderTool(
         modelId: builtModel.id,
         feasibility: builtModel.feasibility,
       };
-    
+    }
+
     default:
       return { error: `未知工具: ${toolName}` };
   }

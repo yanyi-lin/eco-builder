@@ -5,5 +5,9 @@ dist/
 worker-configuration.d.ts
 *.tsbuildinfo
 .zcode/
+.qwen/
 *.local
 .DS_Store
+
+# opencode session 续传记录（本地会话缓存，不入库）
+session.md
