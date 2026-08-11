@@ -111,6 +111,11 @@ export function useEcoAgent(
       getInitialMessages: null,
       resume: false,
       autoContinueAfterToolResult: true,
+      // 节流 useSyncExternalStore 订阅通知（AI SDK 官方逃生通道，上游 #1361/#1732）：
+      // agents 0.17.4 每帧同步 setMessages + ReactChatState 同步 fan-out，
+      // 在连续工具调用的密集帧窗口内触发 React #185（嵌套更新超限）。
+      // 0.18.0 已加 resume 串行门治本，此处再加节流作双保险。
+      experimental_throttle: 32,
       onToolCall: async ({ toolCall, addToolOutput }) => {
         const toolName = toolCall.toolName;
         const args =
