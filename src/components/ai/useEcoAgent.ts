@@ -99,6 +99,12 @@ export function useEcoAgent(
     [],
   );
 
+  // 工具执行串行链：useAgentChat 可能并发触发多个 onToolCall（尤其构建模式
+  // 连续 add-species/add-relation）。并发工具完成时多个 setState 同时触发，
+  // 在 React 19 + autoContinue 下易引发"Maximum update depth exceeded"（#185）。
+  // 用 Promise 链把所有工具执行排成串行，每次只处理一个。
+  const toolChainRef = useRef<Promise<unknown>>(Promise.resolve());
+
   const { messages, sendMessage, status, isStreaming, clearHistory } =
     useAgentChat({
       agent,
@@ -112,28 +118,32 @@ export function useEcoAgent(
             ? toolCall.input
             : {}) as Record<string, unknown>;
 
-        try {
+        // 加入串行队列：工具执行 + addToolOutput 整体串行，
+        // 确保并发工具调用的 setState 不会同时触发（React #185 防护）
+        const myRun = toolChainRef.current.then(async () => {
           let output: unknown;
-          
           // 根据模式分发工具执行
           if (modeRef.current === "build") {
             output = await executeBuilderTool(toolName, args, builderApi);
           } else {
             output = await executeTool(toolName, args, simApi);
           }
-          
-          addToolOutput({
-            toolCallId: toolCall.toolCallId,
-            output: output as Record<string, unknown>,
-          });
+          return output;
+        });
+        // 更新链尾（供下一个工具排队）；异常时链不中断
+        toolChainRef.current = myRun.catch(() => undefined);
+
+        let output: unknown;
+        let errText: string | undefined;
+        try {
+          output = await myRun;
         } catch (err) {
-          addToolOutput({
-            toolCallId: toolCall.toolCallId,
-            output: {
-              error: `工具执行失败: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          });
+          errText = `工具执行失败: ${err instanceof Error ? err.message : String(err)}`;
         }
+        addToolOutput({
+          toolCallId: toolCall.toolCallId,
+          output: errText ? { error: errText } : (output as Record<string, unknown>),
+        });
       },
     });
 
