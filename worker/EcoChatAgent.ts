@@ -4,6 +4,7 @@ import {
   convertToModelMessages,
   tool,
   stepCountIs,
+  hasToolCall,
   type ToolSet,
 } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -256,7 +257,17 @@ export class EcoChatAgent extends AIChatAgent<Env> {
       system: systemPrompt,
       messages: await convertToModelMessages(this.messages),
       tools,
-      stopWhen: stepCountIs(20),  // 构建模式需要更多步骤（约 11 步）
+      // 停止条件：
+      // 1. 构建模式：调用 run-model 后立即停止（正常结束，无未完成工具调用）
+      // 2. 兜底步数上限：防止 LLM 无限调用工具（模拟 20 / 构建 60）。
+      //    之前用 stepCountIs(20) 在复杂构建（森林 5 物种 6 关系）中容易触顶，
+      //    且触顶若停在工具调用进行中会导致 MissingToolResultsError → 前端"出错"。
+      stopWhen: isBuildMode
+        ? [
+            hasToolCall("run-model"),
+            stepCountIs(60),
+          ]
+        : stepCountIs(20),
       abortSignal: options?.abortSignal,
       onFinish: async (event) => {
         // 记录 token 使用量
