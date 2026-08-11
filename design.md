@@ -127,7 +127,7 @@ You are an ecosystem model builder. Build models efficiently from natural langua
 5. Call build-model, then run-model.
 
 ## Rules
-- Max 5 species. If more, ask user to trim.
+- No species cap (soft guard at 20 to prevent runaway). User may add as many as they want.
 - Do NOT teach or explain ecology. Just build.
 - Build immediately when data is complete. Only ask when data is genuinely missing.
 - Respond in Chinese, keep responses short.
@@ -239,7 +239,7 @@ npx wrangler deploy         # 部署
 - **CORS 反射 Origin**（🔴）：改为域名白名单（workers.dev + localhost:5173），非白名单来源无 CORS 头
 - **安全响应头**（🔴）：X-Content-Type-Options/X-Frame-Options/Referrer-Policy/Permissions-Policy 应用于所有响应
 - **无 Error Boundary**（🔴）：新增顶层 ErrorBoundary，捕获渲染异常防白屏
-- **物种上限不一致**（🟡#22）：prompt Max 5 vs 工具上限 10 → 统一为 5
+- **物种上限不一致**（🟡#22）：prompt Max 5 vs 工具上限 10 → 统一为 5（后应使用者要求移除数量限制，改为软护栏 20）
 
 审查确认的已有防护：API key 无硬编码、DOMPurify 净化 AI 输出、NaN/Infinity 防御、关系去重、GloBI 过滤防扩种。
 记录未修项（见 AUDIT-REPORT.md）：CDN 脚本无 SRI、无速率限制、Euler 步长、per-DO token 限制、npm 依赖漏洞等（低风险或属基础设施范畴）。
