@@ -760,28 +760,12 @@ export async function executeBuilderTool(
           })),
         };
       }
-      // adjusted 但仍有物种灭绝（如竞争关系中的自增长资源压死消费者）：
-      // 说明模型结构上有问题（非纯参数问题），不应静默运行注定灭绝的模型。
-      // 返回诊断，让 LLM 向学生说明并考虑调整模型结构。
-      if (
-        builtModel.feasibility?.status === "adjusted" &&
-        builtModel.feasibility.extinctSpecies &&
-        builtModel.feasibility.extinctSpecies.length > 0
-      ) {
-        return {
-          success: false,
-          error: `模型参数已自动调整，但 ${builtModel.feasibility.extinctSpecies.join("、")} 在数值上仍难以维持。这可能是模型结构问题（如某自增长组分压制了其他物种）。模型未运行。`,
-          feasibility: builtModel.feasibility,
-          currentSpecies: api.state.species.map((s) => ({ id: s.id, name: s.name, hasLogistic: s.hasLogistic })),
-          currentRelations: api.state.relations.map((r) => ({
-            type: r.type,
-            prey: r.prey,
-            predator: r.predator,
-            species1: r.species1,
-            species2: r.species2,
-          })),
-        };
-      }
+      // adjusted 但仍有物种难以维持：运行模型，但把 extinctSpecies 透传给 LLM。
+      // 注意：不再硬拦截——复杂生态模型（多生产者/消费者竞争）中部分物种被
+      // 竞争排斥是真实生态现象（竞争排斥原理），强行"修到所有物种都存活"
+      // 既困难也无教育意义；拦截反而诱导 agent 打地鼠式加物种。
+      // 让 LLM 判断：若属建模错误（如自增长资源压制消费者）则向学生说明并
+      // 建议调整；若属竞争排斥的合理结果，则如实呈现并解释。
       api.buildAndRun(builtModel);
       return {
         success: true,

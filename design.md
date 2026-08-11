@@ -257,6 +257,26 @@ npx wrangler deploy         # 部署
 
 验证：15 项全过（新增场景12：营养液竞争 → 非 structural）。纯竞争正确模型仍判 ok 正常运行。
 
+### 9.6 复杂模型不再打地鼠扩种（2026-08-11，用户实测森林生态）
+
+用户实测"构建森林生态系统"：agent 反复添加田鼠/灌木等组分试图满足可行性校验，最终报错。
+
+根因：run-model 对 `adjusted + 有 extinctSpecies` 硬拦截返回 error，LLM 收到后按
+prompt 引导"调整模型结构"，于是打地鼠式加物种——但复杂生态模型中部分物种被
+竞争排斥是真实生态现象（Gause 竞争排斥原理），强行"修到所有物种存活"既困难
+也无教育意义。
+
+修复：
+1. **去掉 run-model 对 adjusted+extinctSpecies 的硬拦截**：模型运行，extinctSpecies
+   透传给 LLM，由 LLM 判断是竞争排斥（合理现象，解释给学生观察）还是建模错误
+   （如营养液自增长），并建议调整——不再诱导加物种
+2. **prompt 更新**：adjusted+有灭绝时，向学生说明哪些物种难以维持及原因，
+   除非学生明确要求否则不添加新物种/关系来"修复"
+
+验证：typecheck ✅ / vitest 12 ✅ / verify 15 ✅
+- 森林模型（5 物种 6 关系）：run-model 正常运行（adjusted+extinct 透传）
+- 营养液错误建模：正常运行 + 诊断透传，LLM 解释而非打地鼠
+
 ## 10. 待办 / 下一步
 
 - [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）
