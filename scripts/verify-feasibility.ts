@@ -277,5 +277,25 @@ function check(label: string, got: string, expected: string) {
   else { pass++; console.log(`  PASS 互利饱和（β=0.05 → a=${pops.a.toFixed(0)}, b=${pops.b.toFixed(0)}）`); }
 }
 
+// 场景12: 竞争关系中的自增长资源（营养液）不应误判 structural-extinction
+//   用户场景：agent 把"营养液"建成 hasLogistic 组分 + 大小草履虫竞争。
+//   旧 bug：classifyExtinction 只沿捕食链找能量来源，忽略 competition 关系，
+//   误判"无生产者"→ structural。修复后：营养液(hasLogistic) 是竞争对手，
+//   灭绝物种通过它拥有再生来源 → adjustable。
+{
+  const species = [
+    makeSpecies("nutrient", "营养液", { hasLogistic: true, growthRate: "nutrient_r", carryingCapacity: "nutrient_K", initial: 200 }),
+    makeSpecies("pc", "大草履虫", { hasLogistic: false, initial: 50 }),
+    makeSpecies("pa", "小草履虫", { hasLogistic: false, initial: 50 }),
+  ];
+  const relations = [
+    { type: "competition", species1: "nutrient", species2: "pc", coeff1: "nut_pc_c1", coeff2: "nut_pc_c2" },
+    { type: "competition", species1: "nutrient", species2: "pa", coeff1: "nut_pa_c1", coeff2: "nut_pa_c2" },
+  ];
+  const params: Record<string, number> = { Nutrient0: 200, Pc0: 50, Pa0: 50, nutrient_r: 0.3, nutrient_K: 300, nut_pc_c1: 0.005, nut_pc_c2: 0.005, nut_pa_c1: 0.005, nut_pa_c2: 0.005 };
+  const res = ensureFeasible(species, relations, params);
+  check("场景12 营养液竞争 → 非structural", res.status === "structural-extinction" ? "structural-extinction" : "not-structural", "not-structural");
+}
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 process.exit(pass > 0 && fail === 0 ? 0 : 1);

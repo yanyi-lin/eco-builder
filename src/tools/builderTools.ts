@@ -759,6 +759,28 @@ export async function executeBuilderTool(
           })),
         };
       }
+      // adjusted 但仍有物种灭绝（如竞争关系中的自增长资源压死消费者）：
+      // 说明模型结构上有问题（非纯参数问题），不应静默运行注定灭绝的模型。
+      // 返回诊断，让 LLM 向学生说明并考虑调整模型结构。
+      if (
+        builtModel.feasibility?.status === "adjusted" &&
+        builtModel.feasibility.extinctSpecies &&
+        builtModel.feasibility.extinctSpecies.length > 0
+      ) {
+        return {
+          success: false,
+          error: `模型参数已自动调整，但 ${builtModel.feasibility.extinctSpecies.join("、")} 在数值上仍难以维持。这可能是模型结构问题（如某自增长组分压制了其他物种）。模型未运行。`,
+          feasibility: builtModel.feasibility,
+          currentSpecies: api.state.species.map((s) => ({ id: s.id, name: s.name, hasLogistic: s.hasLogistic })),
+          currentRelations: api.state.relations.map((r) => ({
+            type: r.type,
+            prey: r.prey,
+            predator: r.predator,
+            species1: r.species1,
+            species2: r.species2,
+          })),
+        };
+      }
       api.buildAndRun(builtModel);
       return {
         success: true,

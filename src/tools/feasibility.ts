@@ -91,8 +91,19 @@ export function ensureFeasible(
       const s = speciesById.get(id);
       if (!s) return false;
       if (s.hasLogistic) return true;
+      // 沿捕食链向上追索：猎物的再生来源
       for (const prey of preyOf.get(id) ?? []) {
         if (hasRenewableSource(prey, visited)) return true;
+      }
+      // 竞争/互利关系：对手物种若有自增长（如"营养液"被建成 hasLogistic 的资源），
+      // 则该灭绝物种通过竞争/互利对象也间接拥有能量来源（非结构性必然灭绝）。
+      // 例如 Gause 实验中草履虫竞争培养液：营养液(hasLogistic) 是竞争对手，
+      // 草履虫灭绝是参数性（竞争强度/初始值）而非"无生产者"的结构性灭绝。
+      for (const r of relations) {
+        if (r.type !== "predation" && (r.species1 === id || r.species2 === id)) {
+          const otherId = r.species1 === id ? r.species2 : r.species1;
+          if (otherId && hasRenewableSource(otherId, visited)) return true;
+        }
       }
       return false;
     };

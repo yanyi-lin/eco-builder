@@ -244,6 +244,19 @@ npx wrangler deploy         # 部署
 审查确认的已有防护：API key 无硬编码、DOMPurify 净化 AI 输出、NaN/Infinity 防御、关系去重、GloBI 过滤防扩种。
 记录未修项（见 AUDIT-REPORT.md）：CDN 脚本无 SRI、无速率限制、Euler 步长、per-DO token 限制、npm 依赖漏洞等（低风险或属基础设施范畴）。
 
+### 9.5 竞争场景建模修正（2026-08-11，用户实测）
+
+用户实测"构建大小草履虫"：agent 擅自加入"营养液"组分并设 hasLogistic=true，导致：
+- 营养液自增长（有限培养液变成可再生资源，涨到 K 压死草履虫）
+- 大小草履虫曲线完全重合（对称竞争）
+
+修复：
+1. **classifyExtinction 忽略 competition 关系**（bug）：只沿捕食链找能量来源，competition 对手有自增长时误判"无生产者"→ structural。已修复：competition/mutualism 关系中对手物种有 hasLogistic 也算再生来源
+2. **adjusted 但有 extinctSpecies 时不再静默运行**：模型结构有问题（如自增长组分压制消费者），run-model 拦截并返回诊断，让 LLM 与学生讨论调整结构
+3. **prompt 强化**：明确"培养液/营养液/资源"是有限资源，不作为独立自增长物种添加；Gause 实验用两个物种 hasLogistic=false 的竞争关系表达
+
+验证：15 项全过（新增场景12：营养液竞争 → 非 structural）。纯竞争正确模型仍判 ok 正常运行。
+
 ## 10. 待办 / 下一步
 
 - [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）
