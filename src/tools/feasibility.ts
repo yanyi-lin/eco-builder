@@ -289,6 +289,23 @@ export function ensureFeasible(
           changed = true;
         }
       }
+      // 灭绝的消费者（出现在捕食关系 predator 位置）往往因能量摄入不足灭绝：
+      // 提高它吃猎物的捕食率（如森林中鹿吃树），增加能量获取。
+      // 历史 bug：applyFixes 只降"被吃的捕食率"，从不提高"吃别人的捕食率"，
+      // 导致鹿吃树率被永远压在低值 → 鹿靠微弱能量勉强存活但长期低迷，
+      // 甚至 12 轮耗尽报"鹿在数值上仍难以维持"。
+      const isPredator = relations.some((r) => r.type === "predation" && r.predator === id);
+      if (isPredator) {
+        for (const r of relations) {
+          if (r.type !== "predation" || r.predator !== id || !r.predationRate) continue;
+          const cur = work[r.predationRate];
+          if (cur !== undefined && cur < 0.02) {
+            // 逐步提高（每轮 ×1.5，上限 0.02，与默认 0.01 同一量级但留裕度）
+            work[r.predationRate] = Math.min(cur * 1.5, 0.02);
+            changed = true;
+          }
+        }
+      }
     }
     // 系统性调整所有 logistic 物种的增长/容纳量：稳定域策略
     for (const s of species) {
@@ -338,10 +355,17 @@ export function ensureFeasible(
         changed = true;
       }
     }
-    // 兜底：若完全没改（都已在稳定域但依然灭绝）→ 尝试把捕食率推到下限
+    // 兜底：若完全没改（都已在稳定域但依然灭绝）→ 尝试把捕食率推到下限。
+    // 注意：**跳过灭绝消费者（predator）吃猎物的捕食率**——这些捕食率是
+    // 灭绝消费者的能量来源，压低它们会减少能量获取、加深灭绝（如鹿吃树率）。
+    // 历史 bug：这里把所有捕食率压到下限，把"提高灭绝消费者吃猎物率"的修复抵消。
     if (!changed) {
+      const extinctPredators = new Set(
+        extinctIds.filter((id) => relations.some((r) => r.type === "predation" && r.predator === id)),
+      );
       for (const r of relations) {
         if (r.type !== "predation" || !r.predationRate) continue;
+        if (r.predator && extinctPredators.has(r.predator)) continue; // 保留灭绝消费者的能量来源
         if (work[r.predationRate] !== undefined && work[r.predationRate] > MIN_PREDATION) {
           work[r.predationRate] = MIN_PREDATION;
           changed = true;

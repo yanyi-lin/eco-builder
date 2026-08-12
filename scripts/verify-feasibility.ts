@@ -396,5 +396,47 @@ function check(label: string, got: string, expected: string) {
   else { fail++; process.exitCode = 1; console.log(`FAIL 共存重合未判 ${JSON.stringify(coexistOv)}`); }
 }
 
+// 场景16: 中间营养级消费者（鹿）灭绝 → applyFixes 应提高其吃猎物的捕食率
+//   用户 bug：森林系统（树+鹿+狼），鹿吃树但捕食率被压低 → 鹿能量摄入不足
+//   持续下降趋近0，狼在归零前比鹿多。报错"鹿在数值上仍难以维持"。
+//   根因：applyFixes 只降"灭绝物种被吃的捕食率"，从不提高"灭绝消费者
+//   吃别人的捕食率"→ 鹿靠微弱能量勉强存活长期低迷，甚至12轮耗尽报难维持。
+//   修复：灭绝消费者（predator）灭绝时提高其吃猎物的捕食率（增加能量获取）。
+{
+  const { ensureFeasible } = await import("../src/tools/feasibility");
+  const { derivatives } = await import("../src/eco/derivatives");
+  const S = (id: string, hasLogistic: boolean, initial: number): any => ({
+    id, name: id, hasLogistic, initial, minValue: 0.5,
+    ...(hasLogistic ? { growthRate: `${id}_r`, carryingCapacity: `${id}_K` } : {}),
+  });
+  const species = [S("oak", true, 100), S("deer", false, 15), S("wolf", false, 30)];
+  const relations: any[] = [
+    { type: "predation", prey: "oak", predator: "deer", predationRate: "oak_deer_a", conversionEfficiency: "oak_deer_e" },
+    { type: "predation", prey: "deer", predator: "wolf", predationRate: "deer_wolf_a", conversionEfficiency: "deer_wolf_e", predatorDeathRate: "wolf_m" },
+  ];
+  // 极端参数：鹿吃树率极低(0.002) + 狼捕鹿率高(0.05) → 鹿能量不足会灭绝
+  const raw = { Oak0: 100, Deer0: 15, Wolf0: 30, oak_r: 0.3, oak_K: 200, oak_deer_a: 0.002, oak_deer_e: 0.68, deer_wolf_a: 0.05, deer_wolf_e: 0.68, wolf_m: 0.08 };
+  const res = ensureFeasible(species as any, relations, raw);
+  // 修复后应提高 oak_deer_a（鹿吃树率），而非保持 0.002
+  const oda = res.params.oak_deer_a;
+  if (oda > 0.002) { pass++; console.log(`PASS 灭绝消费者提高吃猎物捕食率 oak_deer_a=${oda}`); }
+  else { fail++; process.exitCode = 1; console.log(`FAIL 未提高鹿吃树率 oak_deer_a=${oda}`); }
+  // 模拟验证：鹿应存活（不再趋近0）且生态金字塔合理（鹿 > 狼）
+  const spec: any = { species, relations };
+  const pops: Record<string, number> = {};
+  for (const s of species) pops[s.id] = res.params[`${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}0`] ?? s.initial;
+  for (let i = 0; i < 4000; i++) {
+    const d = derivatives(spec, res.params, pops);
+    for (const s of species) {
+      let v = pops[s.id] + (d[s.id] ?? 0) * 0.045;
+      if (!isFinite(v)) v = s.minValue;
+      if (v < s.minValue) v = s.minValue;
+      pops[s.id] = v;
+    }
+  }
+  if (pops.deer > 5) { pass++; console.log(`PASS 鹿存活 deer=${pops.deer.toFixed(1)} wolf=${pops.wolf.toFixed(1)}`); }
+  else { fail++; process.exitCode = 1; console.log(`FAIL 鹿仍低迷 deer=${pops.deer.toFixed(1)}`); }
+}
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 process.exit(pass > 0 && fail === 0 ? 0 : 1);

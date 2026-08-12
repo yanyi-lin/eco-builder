@@ -202,8 +202,11 @@ export function inferDefaultParams(species: SpeciesDef[]): {
     if (sp.hasLogistic && sp.growthRate && sp.carryingCapacity) {
       params[sp.growthRate] = 0.3;
       params[sp.carryingCapacity] = 200;
-      // 若未设置初始值，默认 150
-      if (!(initKey in params)) params[initKey] = 150;
+      // 初始值：优先使用 LLM 传入的 sp.initial（add-species 时用户指定），
+      // 仅在未提供时才用默认值。历史 bug：这里强制写 150/30 覆盖了用户意图
+      // （如鹿=100 被改成 30），且 buildModel 的兜底（params[initKey]===undefined）
+      // 因已写入而永不触发。
+      if (!(initKey in params)) params[initKey] = sp.initial ?? 150;
       
       paramMeta[sp.growthRate] = {
         label: `${sp.growthRate} (${sp.name}增长率)`,
@@ -245,7 +248,8 @@ export function inferDefaultParams(species: SpeciesDef[]): {
     }
     
     if (!sp.hasLogistic && !sp.deathRate) {
-      if (!(initKey in params)) params[initKey] = 30;
+      // 同上：优先 LLM 传入的 sp.initial，避免覆盖用户指定初始值
+      if (!(initKey in params)) params[initKey] = sp.initial ?? 30;
       paramMeta[initKey] = {
         label: `${initKey} (${sp.name}初始)`,
         group: "initial",
