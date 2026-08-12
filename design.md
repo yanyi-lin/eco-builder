@@ -308,6 +308,30 @@ prompt 引导"调整模型结构"，于是打地鼠式加物种——但复杂�
 
 验证：20 项全过（新增场景14：默认不对称 + 对称检测到糊在一起 + 不对称不误检）。
 
+### 9.9 曲线重合度检测 v2：证据 + 完全重回硬标记 + 崩溃豁免（2026-08-12）
+
+用户方向：检测层**不做 feature/bug 判断**——只返回定量重合度证据；重合度高是
+feature（类对称反相振荡/错峰灭绝等合法现象）还是 bug（无意义对称竞争）由 agent
+泛化能力结合用户上下文判断。检测层只对**无歧义的"完全重回"**做硬标记。
+
+数学度量（经 12 场景实验验证，/tmp/opencode/overlap_math_test.ts）：
+- 三层层级判断，每层豁免一类场景：
+  1. 全程共同存活比例 < 0.3 → 崩溃/错峰/灭绝（如鲸落）→ 豁免
+  2. 稳定期平均种群 ≤ 3×minValue → 贴地/接近灭绝（鲸落收尾）→ 豁免
+  3. 稳定期贴合比例 ≤ 0.9 → 类对称反相振荡/有区分度 → 豁免
+  4. 三层全过 → coincident=true（健康共存 + 稳定期曲线几乎全程瞬时重合）
+- 关键：**只统计"两者都健康存活"的步**（> 2×minValue），贴地不算存活，
+  避免"双双归零"被误判为曲线重合（鲸落收尾豁免）。
+- 返回证据字段：coincident / fullBothAliveFrac / stableCloseFrac / maxRelDiff /
+  stableMean / reason（豁免原因，供 agent 理解）。
+
+prompt 同步重写：coincident=true → 明确无教学价值，主动提议不对称化；
+coincident=false 但豁免类 → 合法生态现象（崩溃/反相），不需修改；
+agent 只在能明确判断"参数雷同"时才提议修改。
+
+验证：23 项全过（场景14 改造 + 场景15：捕食关系不检测 / Gause 对称崩溃豁免 /
+共存完全重回判糊）。12 个数学实验场景行为全部符合预期。
+
 ## 10. 待办 / 下一步
 
 - [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）

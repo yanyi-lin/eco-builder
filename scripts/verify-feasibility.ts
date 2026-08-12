@@ -338,7 +338,7 @@ function check(label: string, got: string, expected: string) {
   if (asymmetric) { pass++; console.log(`PASS 默认竞争系数不对称 c1=${params.big_small_c1} c2=${params.big_small_c2}`); }
   else { fail++; process.exitCode = 1; console.log(`FAIL 默认对称竞争 c1=${params.big_small_c1} c2=${params.big_small_c2}`); }
 
-  // b) detectCurveOverlap：对称竞争（coeff 相等）→ 检测到糊在一起
+  // b) detectCurveOverlap：对称竞争（coeff 相等）→ coincident=true（完全重回）
   const S = (id: string, hasLogistic: boolean): any => ({
     id, name: id, hasLogistic, initial: 50, minValue: 0.5,
     ...(hasLogistic ? { growthRate: `${id}_r`, carryingCapacity: `${id}_K` } : {}),
@@ -347,14 +347,53 @@ function check(label: string, got: string, expected: string) {
   const symRel: any = { type: "competition", species1: "a", species2: "b", coeff1: "a_b_c1", coeff2: "a_b_c2" };
   const symParams = { A0: 50, B0: 50, a_r: 0.3, a_K: 200, b_r: 0.3, b_K: 200, a_b_c1: 0.005, a_b_c2: 0.005 };
   const symOv = detectCurveOverlap(symSpecies, [symRel], symParams);
-  if (symOv.length > 0) { pass++; console.log(`PASS 对称竞争检测到曲线糊在一起 ${JSON.stringify(symOv)}`); }
-  else { fail++; process.exitCode = 1; console.log("FAIL 对称竞争未检测到糊在一起"); }
+  if (symOv.length > 0 && symOv[0].coincident) { pass++; console.log(`PASS 对称竞争 coincident=true（完全重回）`); }
+  else { fail++; process.exitCode = 1; console.log(`FAIL 对称竞争未判 coincident ${JSON.stringify(symOv)}`); }
 
-  // c) 不对称竞争 → 不应误检
+  // c) 不对称竞争 → 不应判 coincident
   const asymParams = { A0: 50, B0: 50, a_r: 0.3, a_K: 200, b_r: 0.3, b_K: 200, a_b_c1: 0.015, a_b_c2: 0.001 };
   const asymOv = detectCurveOverlap(symSpecies, [symRel], asymParams);
-  if (asymOv.length === 0) { pass++; console.log("PASS 不对称竞争未误检糊在一起"); }
-  else { fail++; process.exitCode = 1; console.log(`FAIL 不对称竞争误检 ${JSON.stringify(asymOv)}`); }
+  if (asymOv.length === 0 || !asymOv[0].coincident) { pass++; console.log("PASS 不对称竞争不判 coincident"); }
+  else { fail++; process.exitCode = 1; console.log(`FAIL 不对称竞争误判 ${JSON.stringify(asymOv)}`); }
+}
+
+// 场景15: 崩溃/贴地/接近灭绝 豁免（用户要求：如鲸落收尾不应判"糊在一起"）
+//   - 鲸落收尾：两物种无 logistic，先后归零贴地 → 豁免
+//   - 接近灭绝（稳定期均值贴地但曲线相等）→ 豁免
+//   - 类对称反相振荡（sin/cos 同幅同基线，均值相等）→ 不判 coincident（不假阳）
+{
+  const { detectCurveOverlap } = await import("../src/tools/feasibility");
+  const NS = (id: string): any => ({ id, name: id, hasLogistic: false, initial: 50, minValue: 0.5 });
+
+  // a) 鲸落收尾：whale(无logistic) 被 hagfish(无logistic) 消耗，最终贴地 → 豁免
+  const whaleRel: any = { type: "predation", prey: "whale", predator: "hagfish", predationRate: "whale_hagfish_a", conversionEfficiency: "whale_hagfish_e" };
+  const whaleSpecies = [NS("whale"), NS("hagfish")];
+  const whaleParams = { Whale0: 300, Hagfish0: 50, whale_hagfish_a: 0.01, whale_hagfish_e: 0.68, hagfish_m: 0.08 };
+  const whaleOv = detectCurveOverlap(whaleSpecies, [whaleRel as any], whaleParams);
+  // 注意：这里是捕食关系，detectCurveOverlap 只查 competition 对 → 应为空
+  if (whaleOv.length === 0) { pass++; console.log("PASS 捕食关系不被纳入竞争曲线检测"); }
+  else { fail++; process.exitCode = 1; console.log(`FAIL 捕食关系被误检 ${JSON.stringify(whaleOv)}`); }
+
+  // b) Gause 对称崩溃（无 logistic、coeff 相等、同初值，同步归零贴地）→ 接近灭绝 → 豁免
+  const S = (id: string, hasLogistic: boolean): any => ({
+    id, name: id, hasLogistic, initial: 50, minValue: 0.5,
+    ...(hasLogistic ? { growthRate: `${id}_r`, carryingCapacity: `${id}_K` } : {}),
+  });
+  const floorRel: any = { type: "competition", species1: "a", species2: "b", coeff1: "a_b_c1", coeff2: "a_b_c2" };
+  // 无 logistic → 竞争纯耗竭，同步归零（曲线重合但都濒死）→ 豁免
+  const floorParams = { A0: 50, B0: 50, a_b_c1: 0.005, a_b_c2: 0.005 };
+  const floorOv = detectCurveOverlap([S("a", false), S("b", false)], [floorRel as any], floorParams);
+  if (floorOv.length > 0 && !floorOv[0].coincident) { pass++; console.log(`PASS 接近灭绝豁免: ${floorOv[0].reason}`); }
+  else { fail++; process.exitCode = 1; console.log(`FAIL 接近灭绝未豁免 ${JSON.stringify(floorOv)}`); }
+
+  // c) 对称竞争 + 极小竞争系数（两物种健康共存、稳定期完全重回）→ coincident=true。
+  //    反相振荡（sin/cos）的"不假阳"已由实验脚本（/tmp/opencode/overlap_math_test.ts）
+  //    合成序列验证：瞬时错开 → stableCloseFrac≈0.1 → 不判 coincident。
+  const oscRel: any = { type: "competition", species1: "a", species2: "b", coeff1: "a_b_c1", coeff2: "a_b_c2" };
+  const coexistParams = { A0: 120, B0: 80, a_r: 0.3, a_K: 200, b_r: 0.3, b_K: 200, a_b_c1: 0.0005, a_b_c2: 0.0005 };
+  const coexistOv = detectCurveOverlap([S("a", true), S("b", true)], [oscRel as any], coexistParams);
+  if (coexistOv.length > 0 && coexistOv[0].coincident) { pass++; console.log(`PASS 对称竞争共存完全重回 coincident=true`); }
+  else { fail++; process.exitCode = 1; console.log(`FAIL 共存重合未判 ${JSON.stringify(coexistOv)}`); }
 }
 
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);

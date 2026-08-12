@@ -24,22 +24,55 @@ export interface FeasibilityResult {
 /** 检测灭绝时使用的物种"灭绝"阈值：种群 ≤ minValue + ε 视为灭绝 */
 const EXTINCT_EPSILON = 0.01;
 
-/** 曲线"糊在一起"判定：稳定期两条竞争曲线相对差 < 该比例视为重合 */
+// ==== 曲线不可区分度（"糊在一起"）检测的数学度量 ====
+// 设计原则（用户确认）：检测层不做 feature/bug 判断——只返回定量证据 +
+// 无歧义的"完全重回"硬标记；重合度高是 feature 还是 bug 由 agent 泛化能力判断。
+// 关键：贴地 / 全部死亡 / 接近灭绝（如鲸落收尾）必须豁免——只统计
+// "两者都健康存活"的步，并额外要求稳定期均值远离 minValue（健康共存）。
+/** 瞬时相对差 < 该比例视为"贴合" */
 const OVERLAP_RATIO = 0.05;
+/** 存活判定：种群 > minValue × 该因子才算存活（贴地不算） */
+const ALIVE_FACTOR = 2;
+/** 健康共存：稳定期平均种群 > minValue × 该因子（远离贴地/接近灭绝） */
+const MIN_HEALTH_FACTOR = 3;
+/** 全程共同存活比例下限：低于则视为崩溃/错峰/灭绝，豁免 */
+const MIN_FULL_ALIVE = 0.3;
+/** 稳定期贴合比例下限：高于才判"完全重回"（两条曲线无法区分） */
+const CLOSE_FRAC = 0.9;
+
+/** 竞争对曲线不可区分度检测结果（透传给 LLM 作证据） */
+export interface CurveOverlapResult {
+  species1: string;
+  species2: string;
+  /** 完全重回硬标记：健康共存 + 稳定期曲线几乎全程重合（对称竞争直接信号） */
+  coincident: boolean;
+  /** 全程两者共同存活比例（< MIN_FULL_ALIVE 则崩溃/错峰/灭绝） */
+  fullBothAliveFrac: number;
+  /** 稳定期贴合比例（两条曲线瞬时相对差 < OVERLAP_RATIO 的步占比） */
+  stableCloseFrac: number;
+  /** 稳定期最大瞬时相对差 */
+  maxRelDiff: number;
+  /** 稳定期平均种群（用于判断是否贴地/接近灭绝） */
+  stableMean: [number, number];
+  /** 豁免原因（供 agent 理解为何不判糊） */
+  reason: string;
+}
 
 /**
- * 检测竞争曲线是否"糊在一起"（对称竞争的典型症状）。
- * 对每个 competition 关系对，模拟后统计稳定期（后 1/4）平均种群；
- * 若两条曲线几乎重合（相对差 < OVERLAP_RATIO），或两者都贴地且几乎相等，
- * 说明竞争完全对称、势均力敌 → 曲线无区分度、无教学价值
- * （现实中完全对称的竞争几乎不存在）。返回糊在一起的竞争对 id，
- * 由 LLM 判断是否需要修改（如使竞争系数不对称）。
+ * 检测竞争曲线是否"糊在一起"（对称竞争的典型症状），并返回定量证据。
+ * 三层层级判断（每一层都豁免掉一类该豁免的场景）：
+ * 1. 全程共同存活比例过低 → 崩溃/错峰/灭绝（如鲸落各阶段）→ 豁免
+ * 2. 稳定期平均种群贴地（≤ MIN_HEALTH_FACTOR×minValue）→ 接近灭绝 → 豁免
+ * 3. 稳定期贴合比例 ≤ CLOSE_FRAC → 类对称反相振荡/有区分度 → 豁免
+ * 只有三层全过（健康共存 + 完全重回）才标 coincident=true。
+ * 注意：检测层**不判断 feature/bug**——反相振荡、错峰灭绝等是合法生态现象，
+ * 是否值得调整由 LLM 根据重合度证据 + 用户上下文泛化判断。
  */
 export function detectCurveOverlap(
   species: SpeciesDef[],
   relations: RelationDef[],
   params: Record<string, number>,
-): { species1: string; species2: string }[] {
+): CurveOverlapResult[] {
   const DT = 0.045;
   const STEPS = 4000;
   const pairs = relations.filter(
@@ -49,40 +82,76 @@ export function detectCurveOverlap(
   if (pairs.length === 0) return [];
   const byId = new Map(species.map((s) => [s.id, s]));
 
+  // 完整模拟，记录每条曲线（供逐步统计）
+  const series: Record<string, number[]> = {};
+  for (const s of species) series[s.id] = [];
   const pops: Record<string, number> = {};
   for (const s of species) pops[s.id] = params[`${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}0`] ?? s.initial;
-  const sums: Record<string, number> = {};
-  let counted = 0;
   for (let i = 0; i < STEPS; i++) {
     const next = computeStep(species, relations, params, pops, DT);
-    for (const s of species) pops[s.id] = next[s.id] ?? s.minValue;
-    if (i > (STEPS * 3) / 4) {
-      for (const s of species) sums[s.id] = (sums[s.id] ?? 0) + pops[s.id];
-      counted++;
+    for (const s of species) {
+      pops[s.id] = next[s.id] ?? s.minValue;
+      series[s.id].push(pops[s.id]);
     }
   }
-  const means: Record<string, number> = {};
-  for (const s of species) means[s.id] = counted > 0 ? (sums[s.id] ?? 0) / counted : 0;
 
-  const overlap: { species1: string; species2: string }[] = [];
+  const results: CurveOverlapResult[] = [];
   for (const r of pairs) {
-    const n1 = means[r.species1];
-    const n2 = means[r.species2];
+    const ser1 = series[r.species1];
+    const ser2 = series[r.species2];
     const min1 = byId.get(r.species1)?.minValue ?? 0.5;
     const min2 = byId.get(r.species2)?.minValue ?? 0.5;
-    const alive = (n: number, min: number) => n > min * 2;
-    // 两种"糊在一起"情形：
-    // a) 两物种都存活且曲线几乎重合（对称竞争、参数雷同）
-    // b) 两物种都贴地（如 Gause 耗竭归零）且几乎相等 → 同步崩溃，曲线重合
-    if (alive(n1, min1) && alive(n2, min2)) {
-      const diff = Math.abs(n1 - n2) / Math.max(n1, n2, 1e-6);
-      if (diff < OVERLAP_RATIO) overlap.push({ species1: r.species1, species2: r.species2 });
-    } else if (!alive(n1, min1) && !alive(n2, min2)) {
-      const diff = Math.abs(n1 - n2) / Math.max(n1, n2, 1e-6);
-      if (diff < OVERLAP_RATIO) overlap.push({ species1: r.species1, species2: r.species2 });
+    const n = Math.min(ser1.length, ser2.length);
+    const stableStart = Math.floor(n * 0.75);
+    const alive = (v: number, m: number) => v > m * ALIVE_FACTOR;
+
+    // 全程共同存活步数
+    let fullBothAlive = 0;
+    for (let t = 0; t < n; t++) {
+      if (alive(ser1[t], min1) && alive(ser2[t], min2)) fullBothAlive++;
     }
+    const fullBothAliveFrac = fullBothAlive / n;
+
+    // 稳定期：健康检查 + 瞬时贴合比例 + 最大相对差
+    let stableBothAlive = 0, stableClose = 0, maxRelDiff = 0;
+    let sum1 = 0, sum2 = 0;
+    for (let t = stableStart; t < n; t++) {
+      const s1 = ser1[t], s2 = ser2[t];
+      const a1 = alive(s1, min1), a2 = alive(s2, min2);
+      if (a1 && a2) {
+        stableBothAlive++;
+        const relDiff = Math.abs(s1 - s2) / Math.max(s1, s2, 1e-6);
+        if (relDiff < OVERLAP_RATIO) stableClose++;
+        if (relDiff > maxRelDiff) maxRelDiff = relDiff;
+      }
+      sum1 += s1; sum2 += s2;
+    }
+    const stableCount = n - stableStart;
+    const stableMean1 = sum1 / stableCount;
+    const stableMean2 = sum2 / stableCount;
+    const healthy = stableMean1 > min1 * MIN_HEALTH_FACTOR && stableMean2 > min2 * MIN_HEALTH_FACTOR;
+    const stableCloseFrac = stableBothAlive > 0 ? stableClose / stableBothAlive : 0;
+
+    const coincident = fullBothAliveFrac >= MIN_FULL_ALIVE && healthy && stableCloseFrac > CLOSE_FRAC;
+
+    let reason: string;
+    if (coincident) reason = "健康共存且完全重回";
+    else if (fullBothAliveFrac < MIN_FULL_ALIVE) reason = `豁免:共同存活期过短(崩溃/错峰) ${fullBothAliveFrac.toFixed(2)}`;
+    else if (!healthy) reason = `豁免:接近灭绝/贴地(稳定期均值 ${stableMean1.toFixed(1)}/${stableMean2.toFixed(1)}, min=${min1})`;
+    else reason = `豁免:稳定期未完全重合(贴合比例${stableCloseFrac.toFixed(2)})`;
+
+    results.push({
+      species1: r.species1,
+      species2: r.species2,
+      coincident,
+      fullBothAliveFrac: +fullBothAliveFrac.toFixed(3),
+      stableCloseFrac: +stableCloseFrac.toFixed(3),
+      maxRelDiff: +maxRelDiff.toFixed(4),
+      stableMean: [+stableMean1.toFixed(1), +stableMean2.toFixed(1)],
+      reason,
+    });
   }
-  return overlap;
+  return results;
 }
 
 /**
