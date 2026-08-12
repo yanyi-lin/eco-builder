@@ -334,6 +334,9 @@ export function addRelationParams(
     );
     if (isTopPredator && !hasSelfDeath) {
       const predatorDeathRate = relation.predatorDeathRate ?? `${predator}_m`;
+      // 关键：把生成的键写回 relation 对象（computeStep 读 rel.predatorDeathRate，
+      // 若 undefined 则顶级捕食者无额外死亡项 → 食物耗尽后仍不饿死 → 崩溃链不完整）
+      relation.predatorDeathRate = predatorDeathRate;
       // 顶级捕食者死亡率 clamp 到 [0.03, 0.12]（敏感性分析：>0.12 时多次扰动下狼灭绝）
       params[predatorDeathRate] = clampNum(params[predatorDeathRate] ?? 0.08, 0.03, 0.12);
       paramMeta[predatorDeathRate] = {
@@ -744,28 +747,11 @@ export async function executeBuilderTool(
     case "run-model": {
       const builtModel = buildModelCached(api.state, args.name as string, args.description as string);
       if (!builtModel) return { error: "构建失败：没有物种" };
-      // 结构性必然灭绝：不运行、不切出构建模式，返回中性诊断（不诱导 agent 添加物种）
-      if (builtModel.feasibility?.status === "structural-extinction") {
-        return {
-          success: false,
-          error: `模型存在结构性必然灭绝问题：${builtModel.feasibility.message} 模型未运行。`,
-          feasibility: builtModel.feasibility,
-          currentSpecies: api.state.species.map((s) => ({ id: s.id, name: s.name, hasLogistic: s.hasLogistic })),
-          currentRelations: api.state.relations.map((r) => ({
-            type: r.type,
-            prey: r.prey,
-            predator: r.predator,
-            species1: r.species1,
-            species2: r.species2,
-          })),
-        };
-      }
-      // adjusted 但仍有物种难以维持：运行模型，但把 extinctSpecies 透传给 LLM。
-      // 注意：不再硬拦截——复杂生态模型（多生产者/消费者竞争）中部分物种被
-      // 竞争排斥是真实生态现象（竞争排斥原理），强行"修到所有物种都存活"
-      // 既困难也无教育意义；拦截反而诱导 agent 打地鼠式加物种。
-      // 让 LLM 判断：若属建模错误（如自增长资源压制消费者）则向学生说明并
-      // 建议调整；若属竞争排斥的合理结果，则如实呈现并解释。
+      // 结构性必然灭绝：**仍然运行模型**（教育价值——允许学生观察鲸落/生态瓶等
+      // 不稳定系统如何慢慢崩溃，这正是教学场景）。不拦截，把可行性诊断透传给
+      // LLM，由 LLM 向学生说明这是必然灭绝系统，值得观察崩溃过程。
+      // 注：历史上曾拦截（"避免运行注定灭绝的模型"），但用户明确要求
+      // 允许观察崩溃过程，故改为运行 + 标注。
       api.buildAndRun(builtModel);
       return {
         success: true,

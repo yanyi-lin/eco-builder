@@ -277,6 +277,21 @@ prompt 引导"调整模型结构"，于是打地鼠式加物种——但复杂�
 - 森林模型（5 物种 6 关系）：run-model 正常运行（adjusted+extinct 透传）
 - 营养液错误建模：正常运行 + 诊断透传，LLM 解释而非打地鼠
 
+### 9.7 允许观察崩溃系统 + 修复 predatorDeathRate 写回缺失（2026-08-11）
+
+用户 issue（GitHub #1）：构建鲸落系统时"模拟曲线表格没有加载出来"。
+
+设计决策（用户确认）：**允许学生建立并观察不稳定系统（鲸落/生态瓶）如何慢慢崩溃**——
+结构性必然灭绝的模型**仍然运行**（不再拦截），让曲线展示各物种先后灭绝的崩溃过程，
+这正是教学价值所在。LLM 明确标注"此系统必然灭绝，观察崩溃过程"。
+
+顺带修复一个真实 bug：addRelationParams 生成顶级捕食者 <pred>_m 参数时
+**未写回 relation.predatorDeathRate**，导致 computeStep 的死亡项被跳过
+（`if(rel.predatorDeathRate)` 为 false）→ 顶级捕食者在食物耗尽后不饿死
+（鲸落中睡鲨涨到 25848）。修复后睡鲨正确饿死，崩溃链完整。
+
+验证：17 项全过（新增场景13：predatorDeathRate 写回 + 睡鲨饿死）。
+
 ## 10. 待办 / 下一步
 
 - [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）

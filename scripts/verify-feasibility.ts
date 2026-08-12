@@ -297,5 +297,29 @@ function check(label: string, got: string, expected: string) {
   check("场景12 营养液竞争 → 非structural", res.status === "structural-extinction" ? "structural-extinction" : "not-structural", "not-structural");
 }
 
+// 场景13: 顶级捕食者 predatorDeathRate 写回 relation（鲸落崩溃链完整性）
+//   旧 bug：addRelationParams 生成了 <pred>_m 参数但没写回 relation.predatorDeathRate，
+//   computeStep 的 if(rel.predatorDeathRate) 为 false → 顶级捕食者无死亡项 →
+//   食物耗尽后不饿死 → 崩溃链不完整（睡鲨涨到 25848）。
+{
+  const { addRelationParams } = await import("../src/tools/builderTools");
+  const rel: any = { type: "predation", prey: "hagfish", predator: "shark" };
+  const params: Record<string, number> = {};
+  const meta: Record<string, any> = {};
+  addRelationParams(rel, params, meta, { hagfish: "盲鳗", shark: "睡鲨" }, [], []);
+  const ok = rel.predatorDeathRate === "shark_m" && params.shark_m !== undefined;
+  if (ok) { pass++; console.log("PASS 顶级捕食者 predatorDeathRate 写回 relation"); }
+  else { fail++; process.exitCode = 1; console.log(`FAIL rel.predatorDeathRate=${rel.predatorDeathRate} params.shark_m=${params.shark_m}`); }
+  // 验证崩溃链：盲鳗灭绝后睡鲨应饿死（有死亡项）
+  const { derivatives } = await import("../src/eco/derivatives");
+  const spec: any = { species: [
+    { id: "hagfish", minValue: 0.5, hasLogistic: false },
+    { id: "shark", minValue: 0.5, hasLogistic: false },
+  ], relations: [rel] };
+  const d = derivatives(spec, params, { hagfish: 0.5, shark: 100 });
+  if (d.shark < 0) { pass++; console.log(`  PASS 睡鲨在盲鳗灭绝后导数=${d.shark.toFixed(2)}（饿死）`); }
+  else { fail++; process.exitCode = 1; console.log(`  FAIL 睡鲨导数=${d.shark}（未饿死）`); }
+}
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 process.exit(pass > 0 && fail === 0 ? 0 : 1);
