@@ -24,6 +24,67 @@ export interface FeasibilityResult {
 /** 检测灭绝时使用的物种"灭绝"阈值：种群 ≤ minValue + ε 视为灭绝 */
 const EXTINCT_EPSILON = 0.01;
 
+/** 曲线"糊在一起"判定：稳定期两条竞争曲线相对差 < 该比例视为重合 */
+const OVERLAP_RATIO = 0.05;
+
+/**
+ * 检测竞争曲线是否"糊在一起"（对称竞争的典型症状）。
+ * 对每个 competition 关系对，模拟后统计稳定期（后 1/4）平均种群；
+ * 若两条曲线几乎重合（相对差 < OVERLAP_RATIO），或两者都贴地且几乎相等，
+ * 说明竞争完全对称、势均力敌 → 曲线无区分度、无教学价值
+ * （现实中完全对称的竞争几乎不存在）。返回糊在一起的竞争对 id，
+ * 由 LLM 判断是否需要修改（如使竞争系数不对称）。
+ */
+export function detectCurveOverlap(
+  species: SpeciesDef[],
+  relations: RelationDef[],
+  params: Record<string, number>,
+): { species1: string; species2: string }[] {
+  const DT = 0.045;
+  const STEPS = 4000;
+  const pairs = relations.filter(
+    (r): r is RelationDef & { species1: string; species2: string } =>
+      r.type === "competition" && !!r.species1 && !!r.species2,
+  );
+  if (pairs.length === 0) return [];
+  const byId = new Map(species.map((s) => [s.id, s]));
+
+  const pops: Record<string, number> = {};
+  for (const s of species) pops[s.id] = params[`${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}0`] ?? s.initial;
+  const sums: Record<string, number> = {};
+  let counted = 0;
+  for (let i = 0; i < STEPS; i++) {
+    const next = computeStep(species, relations, params, pops, DT);
+    for (const s of species) pops[s.id] = next[s.id] ?? s.minValue;
+    if (i > (STEPS * 3) / 4) {
+      for (const s of species) sums[s.id] = (sums[s.id] ?? 0) + pops[s.id];
+      counted++;
+    }
+  }
+  const means: Record<string, number> = {};
+  for (const s of species) means[s.id] = counted > 0 ? (sums[s.id] ?? 0) / counted : 0;
+
+  const overlap: { species1: string; species2: string }[] = [];
+  for (const r of pairs) {
+    const n1 = means[r.species1];
+    const n2 = means[r.species2];
+    const min1 = byId.get(r.species1)?.minValue ?? 0.5;
+    const min2 = byId.get(r.species2)?.minValue ?? 0.5;
+    const alive = (n: number, min: number) => n > min * 2;
+    // 两种"糊在一起"情形：
+    // a) 两物种都存活且曲线几乎重合（对称竞争、参数雷同）
+    // b) 两物种都贴地（如 Gause 耗竭归零）且几乎相等 → 同步崩溃，曲线重合
+    if (alive(n1, min1) && alive(n2, min2)) {
+      const diff = Math.abs(n1 - n2) / Math.max(n1, n2, 1e-6);
+      if (diff < OVERLAP_RATIO) overlap.push({ species1: r.species1, species2: r.species2 });
+    } else if (!alive(n1, min1) && !alive(n2, min2)) {
+      const diff = Math.abs(n1 - n2) / Math.max(n1, n2, 1e-6);
+      if (diff < OVERLAP_RATIO) overlap.push({ species1: r.species1, species2: r.species2 });
+    }
+  }
+  return overlap;
+}
+
 /**
  * 数值可行性校验（纯函数）。
  *

@@ -1,5 +1,5 @@
 import type { SpeciesDef, RelationDef, RelationType, EcoModelSpec, ParamMeta } from "../eco/types";
-import { ensureFeasible } from "./feasibility";
+import { ensureFeasible, detectCurveOverlap } from "./feasibility";
 
 /** GBIF 物种匹配结果 */
 export interface GbifMatch {
@@ -357,7 +357,12 @@ export function addRelationParams(
     relation.coeff1 = coeff1;
     relation.coeff2 = coeff2;
 
-    params[coeff1] = params[coeff1] ?? 0.005;
+    // 默认竞争系数**不对称**（生态学现实：几乎不存在势均力敌的对称竞争，
+    // 总有一方对资源的竞争能力更强——如 Gause 实验中大小草履虫）。
+    // 对称竞争（coeff1 == coeff2）会使两条曲线完全重合，失去教学价值。
+    // 仅当 LLM 显式传入相同值时才保留对称（用户有意演示理想化对称场景）。
+    // 强方默认 0.012（约 2.4 倍于弱方 0.005），体现明显的竞争强弱差异。
+    params[coeff1] = params[coeff1] ?? 0.012;
     params[coeff2] = params[coeff2] ?? 0.005;
 
     const sp1Name = speciesNames[sp1] || sp1;
@@ -558,6 +563,11 @@ export function buildModel(
     ? Math.max(...rightSpecies.map((s) => calcAxisMax(s, finalParams, 1.5)))
     : 100;
 
+  // 竞争曲线"糊在一起"检测（对称竞争的典型症状）：检测结果透传给 LLM，
+  // 由 LLM 判断是否需要修改（如使竞争系数不对称），而非代码强制修改——
+  // 保持对教学场景的灵活性（用户可能有意演示对称竞争）。
+  const curveOverlap = detectCurveOverlap(speciesWithAxis, relations, finalParams);
+
   return {
     id: `custom_${crypto.randomUUID?.() ?? Date.now().toString(36)}`,
     name,
@@ -571,6 +581,7 @@ export function buildModel(
       status: feasible.status,
       message: feasible.message ?? "",
       ...(feasible.extinctSpecies ? { extinctSpecies: feasible.extinctSpecies } : {}),
+      ...(curveOverlap.length > 0 ? { curveOverlap } : {}),
     },
     axisRanges: {
       left: { min: 0, max: leftMax, step: niceStep(leftMax), title: speciesWithAxis[leftIndex]?.name || "种群密度", color: speciesWithAxis[leftIndex]?.color || "#2e7d32" },

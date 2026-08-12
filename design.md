@@ -292,6 +292,22 @@ prompt 引导"调整模型结构"，于是打地鼠式加物种——但复杂�
 
 验证：17 项全过（新增场景13：predatorDeathRate 写回 + 睡鲨饿死）。
 
+### 9.8 对称竞争护栏（2026-08-12）
+
+用户反馈：agent 容易加入对称竞争（coeff1 == coeff2），现实中几乎不存在且无
+教学价值（两条曲线完全重合，无法区分竞争结果）。
+
+双层护栏：
+1. **建模层（护栏1）**：system prompt 明确"除非用户明确要求，不要建立对称竞争"；
+   addRelationParams 默认竞争系数**不对称**（0.012 / 0.005，一方约 2.4 倍强），
+   仅当 LLM 显式传入相同值时才保留对称（用户有意演示理想化场景）。
+2. **检测层（护栏2）**：新增 detectCurveOverlap——对每个 competition 关系对
+   模拟 4000 步后检查稳定期（后 1/4）两条曲线是否几乎重合（相对差 < 5%），
+   或都贴地且几乎相等（同步崩溃）。检测结果透传给 LLM（feasibility.curveOverlap），
+   由 LLM 判断并主动提出"使竞争系数不对称"后再运行。
+
+验证：20 项全过（新增场景14：默认不对称 + 对称检测到糊在一起 + 不对称不误检）。
+
 ## 10. 待办 / 下一步
 
 - [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）

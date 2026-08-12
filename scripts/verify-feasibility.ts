@@ -321,5 +321,41 @@ function check(label: string, got: string, expected: string) {
   else { fail++; process.exitCode = 1; console.log(`  FAIL 睡鲨导数=${d.shark}（未饿死）`); }
 }
 
+// 场景14: 对称竞争检测（护栏2——曲线"糊在一起"）+ 默认不对称竞争（护栏1）
+//   旧行为：addRelationParams 默认 coeff1=coeff2=0.005（对称竞争），两条曲线
+//   完全重合无区分度，现实中几乎不存在且无教学价值。
+//   修复：a) 默认竞争系数不对称（0.012 / 0.005，一方约 2.4 倍强）；
+//        b) detectCurveOverlap 检测稳定期曲线重合，结果透传给 LLM 判断是否修改。
+{
+  const { detectCurveOverlap } = await import("../src/tools/feasibility");
+  const { addRelationParams } = await import("../src/tools/builderTools");
+  // a) 默认不对称竞争：addRelationParams 未传 coeff 时生成不对称系数
+  const rel: any = { type: "competition", species1: "big", species2: "small" };
+  const params: Record<string, number> = {};
+  const meta: Record<string, any> = {};
+  addRelationParams(rel, params, meta, { big: "大草履虫", small: "小草履虫" }, [], []);
+  const asymmetric = params.big_small_c1 !== params.big_small_c2;
+  if (asymmetric) { pass++; console.log(`PASS 默认竞争系数不对称 c1=${params.big_small_c1} c2=${params.big_small_c2}`); }
+  else { fail++; process.exitCode = 1; console.log(`FAIL 默认对称竞争 c1=${params.big_small_c1} c2=${params.big_small_c2}`); }
+
+  // b) detectCurveOverlap：对称竞争（coeff 相等）→ 检测到糊在一起
+  const S = (id: string, hasLogistic: boolean): any => ({
+    id, name: id, hasLogistic, initial: 50, minValue: 0.5,
+    ...(hasLogistic ? { growthRate: `${id}_r`, carryingCapacity: `${id}_K` } : {}),
+  });
+  const symSpecies = [S("a", true), S("b", true)];
+  const symRel: any = { type: "competition", species1: "a", species2: "b", coeff1: "a_b_c1", coeff2: "a_b_c2" };
+  const symParams = { A0: 50, B0: 50, a_r: 0.3, a_K: 200, b_r: 0.3, b_K: 200, a_b_c1: 0.005, a_b_c2: 0.005 };
+  const symOv = detectCurveOverlap(symSpecies, [symRel], symParams);
+  if (symOv.length > 0) { pass++; console.log(`PASS 对称竞争检测到曲线糊在一起 ${JSON.stringify(symOv)}`); }
+  else { fail++; process.exitCode = 1; console.log("FAIL 对称竞争未检测到糊在一起"); }
+
+  // c) 不对称竞争 → 不应误检
+  const asymParams = { A0: 50, B0: 50, a_r: 0.3, a_K: 200, b_r: 0.3, b_K: 200, a_b_c1: 0.015, a_b_c2: 0.001 };
+  const asymOv = detectCurveOverlap(symSpecies, [symRel], asymParams);
+  if (asymOv.length === 0) { pass++; console.log("PASS 不对称竞争未误检糊在一起"); }
+  else { fail++; process.exitCode = 1; console.log(`FAIL 不对称竞争误检 ${JSON.stringify(asymOv)}`); }
+}
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 process.exit(pass > 0 && fail === 0 ? 0 : 1);
