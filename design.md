@@ -357,6 +357,21 @@ agent 只在能明确判断"参数雷同"时才提议修改。
 用户场景复现：鹿100狼30 → 修复前 deer=36.8 wolf=32.5（鹿低迷），
 修复后 deer=73.5 wolf=65.2（鹿>狼，金字塔合理）。
 
+### 9.11 模拟模式 build 护栏（软约束，issue #3）（2026-08-13）
+
+用户 bug（contributor issue #3）：agent 在【模拟模式】下向用户承诺能 build，
+但尝试后发现自己不在 build 模式、无权限——前端 executeTool 对 build 工具
+返回"未知工具"错误。
+
+根因：worker 端 `tools` 对象对两种模式**暴露全部工具**（模拟+build），只有
+systemPrompt 按模式切换（软约束），LLM 在模拟模式仍能看到 build 工具 schema
+并误以为可用。且模式切换完全由用户手动（App.tsx 按钮），agent 无感知。
+
+修复（方案 B，软护栏）：在 SYSTEM_PROMPT_SIMULATE 显式声明模式限制——
+"只能操作已有模型，不能构建；若用户想构建，明确告诉用户点击左上角
+『构建新模型』按钮切换到【构建模式】"。工具仍全暴露（依赖 LLM 自觉），
+后续可升级为方案 A（tools 按模式过滤，从根上杜绝）。
+
 ## 10. 待办 / 下一步
 
 - [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）
