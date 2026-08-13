@@ -65,7 +65,12 @@ export function ChartPanel({ sim, chart, onOpenTuner }: ChartPanelProps) {
           >
             {startResetLabel}
           </button>
-          <button className="ctrl-btn" onClick={onOpenTuner}>
+          <button
+            className="ctrl-btn ecotuner-hidden"
+            disabled
+            onClick={onOpenTuner}
+            title="Eco-Tuner（已禁用）"
+          >
             🎛️ Eco-Tuner
           </button>
         </div>
