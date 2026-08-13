@@ -398,6 +398,25 @@ systemPrompt 按模式切换（软约束），LLM 在模拟模式仍能看到 bu
 跨日期重置）✅ / wrangler dev 绑定确认 ✅
 部署 Version 5b2ae9e4
 
+### 9.13 测试目录 test/ 与 worker 纯逻辑抽取（issue #11）（2026-08-13）
+
+contributor issue #11：要求统一的自动化测试目录（/test），强调对 AI 开发
+（自动化回归）的重要性。
+
+方案（用户确认，方案 B 最小改动）：
+- 新建 `test/` 目录 + `test/README.md`（说明测试组织：test/ 新增、
+  src/**/*.test.ts 既有、scripts/verify-feasibility.ts 独立脚本）
+- 新增 `test/mode-detection.test.ts`：worker 模式判定（为可测性，把
+  onChatMessage 内联的模式判定+前缀剥离抽成 `worker/mode.ts` 纯函数），
+  含 issue #10 回归用例（工具 auto-continuation 时最后一条是 assistant
+  消息，应从最后一条 user 消息判定）
+- 新增 `test/curve-overlap.test.ts`：detectCurveOverlap 核心场景固化
+  （对称判糊 / 不对称不判 / Gause 崩溃豁免 / 捕食不参与）
+- 邀请 PR 语句按用户要求暂不加入 README
+
+验证：typecheck ✅ / vitest 27 ✅（5 文件，新增 2 文件 15 用例）/
+verify 25 ✅ / build ✅
+
 ## 10. 待办 / 下一步
 
 - [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）
