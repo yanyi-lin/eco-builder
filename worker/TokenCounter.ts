@@ -30,17 +30,28 @@ export class TokenCounter extends DurableObject {
   /** 指定日期请求次数 +1，返回最新累计值 */
   async increment(date: string): Promise<CounterResult> {
     await this.ensureTable();
+    // 注意：workerd 的 sql.exec(query, ...bindings) 是 rest 参数，**不能传数组**。
+    // 历史 bug：传数组 [date] 会被视为单个绑定（数组对象），
+    // 与 SQL 的 ? 数量不匹配 → "Wrong number of parameter bindings"。
     const rows = await this.ctx.storage.sql.exec(
       `SELECT count FROM daily_request_count WHERE date = ?`,
-      [date],
+      date,
     );
     const current = rows.toArray()[0]?.count as number | undefined;
     const next = (current ?? 0) + 1;
-    await this.ctx.storage.sql.exec(
-      `INSERT INTO daily_request_count (date, count) VALUES (?, ?)
-       ON CONFLICT(date) DO UPDATE SET count = excluded.count`,
-      [date, next],
-    );
+    if (current === undefined) {
+      await this.ctx.storage.sql.exec(
+        `INSERT INTO daily_request_count (date, count) VALUES (?, ?)`,
+        date,
+        next,
+      );
+    } else {
+      await this.ctx.storage.sql.exec(
+        `UPDATE daily_request_count SET count = ? WHERE date = ?`,
+        next,
+        date,
+      );
+    }
     return { count: next };
   }
 
@@ -49,7 +60,7 @@ export class TokenCounter extends DurableObject {
     await this.ensureTable();
     const rows = await this.ctx.storage.sql.exec(
       `SELECT count FROM daily_request_count WHERE date = ?`,
-      [date],
+      date,
     );
     return (rows.toArray()[0]?.count as number | undefined) ?? 0;
   }
