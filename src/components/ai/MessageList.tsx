@@ -70,7 +70,10 @@ function MessageItem({ msg }: { msg: UIMessage }) {
     [msg],
   );
 
-  const text = textParts.map((p) => p.text).join("\n");
+  // 用户消息的文本可能带 [MODE: build] 协议前缀（useEcoAgent 发送时注入，
+  // worker 靠它识别构建模式）。它是传输标记，不应展示给用户——渲染时剥离。
+  const rawText = textParts.map((p) => p.text).join("\n");
+  const text = isUser ? rawText.replace(/^\[MODE: build\]\s*/i, "") : rawText;
 
   return (
     <>
