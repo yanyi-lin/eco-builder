@@ -372,6 +372,32 @@ systemPrompt 按模式切换（软约束），LLM 在模拟模式仍能看到 bu
 『构建新模型』按钮切换到【构建模式】"。工具仍全暴露（依赖 LLM 自觉），
 后续可升级为方案 A（tools 按模式过滤，从根上杜绝）。
 
+### 9.12 全局每日请求限制（计数器 DO，2026-08-13）
+
+用户需求：每天 20k 次请求上限（非 token），每日重置，耗尽返回 429"明日再试"。
+
+背景：原 token 限制（DAILY_TOKEN_LIMIT=5M）存在架构缺陷——token_usage 表存
+在**每个 DO 实例私有 SQLite**，按 DO 实例隔离计数，刷新/新建会话即新实例、
+配额随之重置（对抗式审查 #3 确认）。多会话方案会放大此问题。
+
+设计（方案 A，用户确认）：
+- 计数单位从 token 改为**请求次数**（每 onChatMessage +1，含工具 auto-continuation
+  每轮，更严格、防自动续环耗尽）
+- 新增固定 name 的计数器 DO（TokenCounter），所有会话实例通过
+  `env.ECO_COUNTER.get(idFromName("global")).increment(date)` RPC 原子计数
+  （DO 单线程保证原子性，无并发丢计数；按 date 主键，新的一天自然新行）
+- 继承 cloudflare:workers 的 DurableObject 基类获得 DurableObjectBranded，
+  env.d.ts 用 `DurableObjectNamespace<TokenCounter>` 泛型使 RPC 类型安全
+- 每日 20k 上限，超限返回 429 + "请明日再试"
+
+改动：wrangler.jsonc（+ECO_COUNTER 绑定 + migration v2）、env.d.ts（+泛型绑定）、
+新增 worker/TokenCounter.ts、index.ts 导出、EcoChatAgent 删 token_usage 逻辑
+改用计数器（删 ensureTokenTable/getTodayUsage/recordUsage 3 方法 + onFinish 记账）。
+
+验证：typecheck ✅ / vitest 12 ✅ / SQL 语义验证（20000 次 allowed、20001 次 429、
+跨日期重置）✅ / wrangler dev 绑定确认 ✅
+部署 Version 5b2ae9e4
+
 ## 10. 待办 / 下一步
 
 - [x] Phase 2a：builder 工具实现（search-species / query-interactions / build-model / run-model / get-current-model）

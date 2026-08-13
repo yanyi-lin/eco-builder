@@ -11,8 +11,8 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { z } from "zod";
 import type { Env } from "./env.d";
 
-// Token 使用限制（每日 500 万 tokens，约 5 元人民币）
-const DAILY_TOKEN_LIMIT = 5_000_000;
+// 全局限额：每日请求次数上限（每个 onChatMessage 含工具 auto-continuation 每轮 +1）
+const DAILY_REQUEST_LIMIT = 20_000;
 
 /**
  * 生态模拟器 AI 聊天 Agent。
@@ -125,54 +125,24 @@ const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回�
 操作后简述结果。`;
 
 export class EcoChatAgent extends AIChatAgent<Env> {
-  private async ensureTokenTable() {
-    // 在第一次使用时创建表（幂等操作）
-    await this.ctx.storage.sql.exec(`
-      CREATE TABLE IF NOT EXISTS token_usage (
-        date TEXT PRIMARY KEY,
-        prompt_tokens INTEGER DEFAULT 0,
-        completion_tokens INTEGER DEFAULT 0,
-        total_tokens INTEGER DEFAULT 0
-      )
-    `);
-  }
-
-  private async getTodayUsage(): Promise<number> {
-    await this.ensureTokenTable();
-    const today = new Date().toISOString().split('T')[0];
-    const result = await this.ctx.storage.sql.exec(
-      `SELECT total_tokens FROM token_usage WHERE date = ?`,
-      [today]
-    );
-    // 使用 toArray() 而非 one()，避免 0 行时抛 RangeError
-    const rows = result.toArray();
-    return (rows[0]?.total_tokens as number) || 0;
-  }
-
-  private async recordUsage(promptTokens: number, completionTokens: number) {
-    await this.ensureTokenTable();
-    const today = new Date().toISOString().split('T')[0];
-    const total = promptTokens + completionTokens;
-    
-    await this.ctx.storage.sql.exec(`
-      INSERT INTO token_usage (date, prompt_tokens, completion_tokens, total_tokens)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(date) DO UPDATE SET
-        prompt_tokens = prompt_tokens + excluded.prompt_tokens,
-        completion_tokens = completion_tokens + excluded.completion_tokens,
-        total_tokens = total_tokens + excluded.total_tokens
-    `, [today, promptTokens, completionTokens, total]);
+  // 通过固定 name 的计数器 DO 做全局每日请求计数。
+  // 注意：DO 实例的 SQLite 是实例私有的，无法跨会话共享限额，
+  // 故统一走 env.ECO_COUNTER 的全局实例（idFromName("global") 确定性映射）。
+  private async checkAndIncrementRequest(date: string): Promise<{ count: number; allowed: boolean }> {
+    const counter = this.env.ECO_COUNTER.get(this.env.ECO_COUNTER.idFromName("global"));
+    const { count } = await counter.increment(date);
+    return { count, allowed: count <= DAILY_REQUEST_LIMIT };
   }
 
   async onChatMessage(
     onFinish: Parameters<AIChatAgent<Env>["onChatMessage"]>[0],
     options?: Parameters<AIChatAgent<Env>["onChatMessage"]>[1],
   ) {
-    // 检查 token 使用限制
-    const currentUsage = await this.getTodayUsage();
-    if (currentUsage >= DAILY_TOKEN_LIMIT) {
-      const remaining = DAILY_TOKEN_LIMIT - currentUsage;
-      const msg = `今日 token 用量已达上限（${DAILY_TOKEN_LIMIT.toLocaleString()}），剩余 ${Math.max(0, remaining).toLocaleString()}。请明日再试。`;
+    // 全局每日请求次数限制（跨所有会话实例聚合）
+    const today = new Date().toISOString().split('T')[0];
+    const { allowed } = await this.checkAndIncrementRequest(today);
+    if (!allowed) {
+      const msg = `今日请求次数已达上限（${DAILY_REQUEST_LIMIT.toLocaleString()}），剩余 0。请明日再试。`;
       return new Response(JSON.stringify({ error: msg }), {
         status: 429,
         headers: { "Content-Type": "application/json" },
@@ -304,14 +274,8 @@ export class EcoChatAgent extends AIChatAgent<Env> {
         : stepCountIs(20),
       abortSignal: options?.abortSignal,
       onFinish: async (event) => {
-        // 记录 token 使用量
-        if (event.usage) {
-          await this.recordUsage(
-            event.usage.inputTokens || 0,
-            event.usage.outputTokens || 0
-          );
-        }
-        // 调用原始的 onFinish
+        // 全局每日请求计数已在 onChatMessage 开头统一递增（含工具续回合），
+        // 此处无需再记录 token/请求量。
         onFinish(event);
       },
     });

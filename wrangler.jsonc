@@ -10,11 +10,13 @@
   },
   "durable_objects": {
     "bindings": [
-      { "name": "ECO_CHAT", "class_name": "EcoChatAgent" }
+      { "name": "ECO_CHAT", "class_name": "EcoChatAgent" },
+      { "name": "ECO_COUNTER", "class_name": "TokenCounter" }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["EcoChatAgent"] }
+    { "tag": "v1", "new_sqlite_classes": ["EcoChatAgent"] },
+    { "tag": "v2", "new_sqlite_classes": ["TokenCounter"] }
   ],
   "vars": {
     "OPENAI_BASE_URL": "https://api.deepseek.com",

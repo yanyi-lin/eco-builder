@@ -3,6 +3,7 @@ import type { Env } from "./env.d";
 
 // 导出 Durable Object 类（Wrangler 需要在入口能找到）
 export { EcoChatAgent } from "./EcoChatAgent";
+export { TokenCounter } from "./TokenCounter";
 
 // 允许的前端来源白名单（不反射任意 Origin，防止跨站请求伪造）
 const ALLOWED_ORIGINS = new Set([
