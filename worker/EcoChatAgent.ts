@@ -149,19 +149,37 @@ export class EcoChatAgent extends AIChatAgent<Env> {
       });
     }
 
-    // 检测当前模式：从最后一条用户消息中查找 [MODE: build] 标记
-    const lastMessage = this.messages[this.messages.length - 1];
+    // 检测当前模式：从后往前找**最后一条 user 消息**检查 [MODE: build] 标记。
+    // 注意：不能用 this.messages 的最后一条——工具 auto-continuation 时
+    // 最后一条是 assistant 工具消息（role !== "user"），会导致构建模式的
+    // 工具续回合误判为 simulate（issue #10 的核心混乱之一）。
     let isBuildMode = false;
-    
-    if (lastMessage?.role === "user" && Array.isArray(lastMessage.parts)) {
-      for (const part of lastMessage.parts) {
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const m = this.messages[i];
+      if (m?.role !== "user" || !Array.isArray(m.parts)) continue;
+      for (const part of m.parts) {
         if (part.type === "text" && typeof part.text === "string" && part.text.includes("[MODE: build]")) {
           isBuildMode = true;
           break;
         }
       }
+      break; // 只查最后一条 user 消息
     }
-    
+
+    // 剥离历史消息中的 [MODE: build] 协议前缀：它是前端→worker 的传输标记
+    // （仅用于上面的模式判定），不应出现在 LLM 上下文里——否则 LLM 会误读
+    // 历史消息为"用户主动标记模式"，造成"用户没切模式但 agent 以为切了"
+    // 的混乱（issue #10：用户在模拟模式连发"继续"，agent 却从历史前缀
+    // 误判用户已声明构建模式）。
+    const cleanMessages = this.messages.map((m) => ({
+      ...m,
+      parts: m.parts.map((p) =>
+        p.type === "text" && typeof p.text === "string"
+          ? { ...p, text: p.text.replace(/^\[MODE: build\]\s*/i, "") }
+          : p,
+      ),
+    }));
+
     const systemPrompt = isBuildMode ? SYSTEM_PROMPT_BUILD : SYSTEM_PROMPT_SIMULATE;
 
     // 用 openai-compatible provider：默认走 Chat Completions API（/chat/completions），
@@ -259,7 +277,7 @@ export class EcoChatAgent extends AIChatAgent<Env> {
       // openai-compatible provider 直接调用即走 Chat Completions（/chat/completions）
       model: provider(this.env.OPENAI_MODEL),
       system: systemPrompt,
-      messages: await convertToModelMessages(this.messages),
+      messages: await convertToModelMessages(cleanMessages),
       tools,
       // 停止条件：
       // 1. 构建模式：调用 run-model 后立即停止（正常结束，无未完成工具调用）

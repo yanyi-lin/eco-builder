@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { UIMessage } from "ai";
 import { getToolName, isToolUIPart } from "ai";
-import { getToolInput } from "@cloudflare/ai-chat/react";
+import { getToolInput, getToolOutput } from "@cloudflare/ai-chat/react";
 
 interface MessageListProps {
   messages: UIMessage[];
@@ -102,8 +102,23 @@ function MessageItem({ msg }: { msg: UIMessage }) {
             return undefined;
           }
         })();
+        // 错误判定双通道：part.state === "output-error"（SDK 层面标记）
+        // 或工具输出对象含 error 字段（executeTool/executeBuilderTool 返回
+        // {error: "..."} 时 state 仍为 output-available，历史 bug 导致
+        // "未知工具"却显示 ✓，见 issue #10）。
+        const output = (() => {
+          try {
+            return getToolOutput(part);
+          } catch {
+            return undefined;
+          }
+        })();
         const isError =
-          (part as unknown as { state?: string }).state === "output-error";
+          (part as unknown as { state?: string }).state === "output-error" ||
+          (output !== undefined &&
+            typeof output === "object" &&
+            output !== null &&
+            "error" in (output as Record<string, unknown>));
         const summary = formatToolSummary(name, input);
         return (
           <div key={`${msg.id}-tool-${i}`} className={`ai-tool-chip${isError ? " error" : ""}`}>
