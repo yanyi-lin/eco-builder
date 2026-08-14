@@ -46,6 +46,34 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
     }));
   };
 
+  /** 动态适配 Y 轴范围（issue #8）：模拟中种群可能超过构建时由 initial/K
+   *  计算出的 axisRanges 上限（如两个物种 80 与 200，200 超出可视区）。
+   *  按数据集归属的左/右轴分别统计实际最大值，超出硬编码上限时扩展；
+   *  不自动收窄（避免曲线抖动），min 保持构建时下限。 */
+  const applyAxisAutoScale = (chart: Chart<"line">) => {
+    const currentSpec = specRef.current;
+    const initialMax: Record<"left" | "right", number> = {
+      left: currentSpec.axisRanges.left.max,
+      right: currentSpec.axisRanges.right.max,
+    };
+    const actualMax: Record<"left" | "right", number> = { left: 0, right: 0 };
+    currentSpec.species.forEach((s, i) => {
+      const arr = chart.data.datasets[i]?.data as number[] | undefined;
+      if (!arr) return;
+      for (const v of arr) {
+        if (isFinite(v) && v > actualMax[s.axis]) actualMax[s.axis] = v;
+      }
+    });
+    (["left", "right"] as const).forEach((side) => {
+      const scale = chart.options.scales?.[side === "left" ? "y-plant" : "y-prey"];
+      if (!scale) return;
+      const target = Math.max(initialMax[side], actualMax[side] * 1.15);
+      if (target > (scale.max as number)) {
+        scale.max = target;
+      }
+    });
+  };
+
   /** 创建图表实例。
    *  若 canvas 上已注册 Chart 实例（StrictMode 重挂载残留），先销毁它再创建，
    *  避免 "Canvas is already in use"。仅检查 canvas 本身的注册，不动 chartRef。 */
@@ -137,6 +165,7 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
         instance.data.datasets[i].data = [...(history[s.id] ?? [])];
       });
       instance.data.labels = timeData.map((t) => t.toFixed(1));
+      applyAxisAutoScale(instance);
       instance.update("none");
     }
     return instance;
@@ -166,6 +195,8 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
       chart.data.datasets[i].data = [...(history[s.id] ?? [])];
     });
     chart.data.labels = timeData.map((t) => t.toFixed(1));
+    // 动态适配 Y 轴范围（issue #8）：种群可能超过构建时轴上限，扩展可视区
+    applyAxisAutoScale(chart);
     chart.update("none");
   };
 
