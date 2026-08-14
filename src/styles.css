@@ -72,6 +72,12 @@ h1 {
   font-size: 0.9rem;
   color: #2c5e3a;
 }
+/* 模型选择器（历史遗留）：隐藏 + 禁点（保留 DOM 占位与 onChange 链路，
+   未来恢复只需删除本规则并去掉 disabled 属性） */
+.model-selector-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
 .model-selector-wrap select {
   border: none;
   background: transparent;

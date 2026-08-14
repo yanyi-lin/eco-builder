@@ -63,7 +63,7 @@ export function App() {
           <div className="title-actions">
             {mode === "simulate" ? (
               <>
-                <ModelSelector value={modelId} onChange={handleModelChange} />
+                <ModelSelector value={modelId} onChange={handleModelChange} disabled />
                 <button
                   className="info-btn"
                   onClick={() => setInfoOpen(true)}
