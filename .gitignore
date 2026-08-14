@@ -11,3 +11,6 @@ worker-configuration.d.ts
 
 # opencode session 续传记录（本地会话缓存，不入库）
 session.md
+
+# 审计报告（本地文件，不上传 GitHub）
+AUDIT-REPORT.md
