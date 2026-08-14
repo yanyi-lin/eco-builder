@@ -29,6 +29,24 @@ npm run verify:feasibility  # 运行独立的可行性校验脚本（25 项场�
 - **`curve-overlap.test.ts`** — 竞争曲线"不可区分度"检测（`detectCurveOverlap`）：
   对称竞争判糊、不对称竞争不判、类对称反相/崩溃/贴地豁免、捕食关系不参与检测。
 
+- **`builder-tools.test.ts`** — 构建工具纯函数与执行器：
+  `autoSpeciesKeys` / `inferDefaultParams` / `addRelationParams`（捕食/竞争/互利参数生成、
+  捕食率 clamp、predatorDeathRate 写回、默认不对称竞争）/ `buildModel` /
+  `executeBuilderTool`（add-species/add-relation 校验、get-current-model、run-model）。
+
+- **`eco-tools.test.ts`** — 模拟工具（`ecoTools.ts`）：`readAnimalData` 快照、
+  `animalPopulationSet` 必须先读约束、start/pause/restart、`executeTool` 分发。
+
+- **`feasibility-extra.test.ts`** — `ensureFeasible` 补充场景：竞争/互利对手再生来源、
+  鲸落结构性灭绝、纯竞争耗竭、生态金字塔、互利饱和。
+
+- **`derivatives.test.ts`** — `derivatives` 实时导数与 `computeStep(dt=1, skipClamp)`
+  一致性、捕食/竞争方向性验证。
+
+- **`token-counter.test.ts`** — 全局请求计数器（`worker/TokenCounter.ts`）：首次 INSERT、
+  连续累加、跨日期独立计数（每日重置）、get 查询。通过 mock `cloudflare:workers`
+  的 `DurableObject` 基类在 node 环境实例化。
+
 ## 添加新测试的约定
 
 - 新测试优先放本目录，命名 `*.test.ts`（vitest 自动发现，无需注册）。

@@ -12,7 +12,7 @@
     "wrangler:deploy": "wrangler deploy",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "verify:feasibility": "esbuild scripts/verify-feasibility.ts --bundle --platform=node --format=esm --outfile=/tmp/opencode/verify-feasibility.mjs && node /tmp/opencode/verify-feasibility.mjs"
+    "verify:feasibility": "mkdir -p /tmp && esbuild scripts/verify-feasibility.ts --bundle --platform=node --format=esm --outfile=/tmp/verify-feasibility.mjs && node /tmp/verify-feasibility.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.62",
