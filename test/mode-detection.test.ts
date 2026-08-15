@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { detectBuildMode, stripModePrefix, MODE_BUILD_PREFIX } from "../worker/mode";
+// 迁移后 mode.ts 从 worker/ 移至 server/（脱离 CF，逻辑原样保留）
+import { detectBuildMode, stripModePrefix, MODE_BUILD_PREFIX } from "../server/mode";
 
 // 构造最小 UIMessage（仅包含测试需要的字段）
 function userMsg(id: string, text: string) {

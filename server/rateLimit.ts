@@ -12,8 +12,15 @@ export const DAILY_REQUEST_LIMIT = 20_000;
 /** 内存计数表：date -> 当日请求数 */
 const counts = new Map<string, number>();
 
+/** 测试钩子：可注入"当前时间"以测试跨日重置（生产环境保持 null） */
+let nowOverride: (() => Date) | null = null;
+export function __setNowForTests(fn: (() => Date) | null): void {
+  nowOverride = fn;
+}
+
 function today(): string {
-  return new Date().toISOString().split("T")[0];
+  const d = nowOverride ? nowOverride() : new Date();
+  return d.toISOString().split("T")[0];
 }
 
 /**
