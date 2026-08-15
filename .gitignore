@@ -2,12 +2,19 @@ node_modules/
 dist/
 .wrangler/
 .dev.vars
+# 环境变量文件（含 API key，禁止提交）
+.env
+.env.*
+!.env.example
 worker-configuration.d.ts
 *.tsbuildinfo
 .zcode/
 .qwen/
 *.local
 .DS_Store
+# 敏感证书/凭据文件
+*.pem
+secrets.json
 
 # opencode session 续传记录（本地会话缓存，不入库）
 session.md
