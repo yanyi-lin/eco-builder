@@ -1,30 +1,138 @@
+import { useEffect, useState } from "react";
+
 interface InfoModalProps {
   open: boolean;
   onClose: () => void;
 }
 
+/** 项目信息弹窗（"i" 按钮）：介绍 + 制作者 + 鸣谢入口 */
 export function InfoModal({ open, onClose }: InfoModalProps) {
+  const [showCredits, setShowCredits] = useState(false);
+
+  // 关闭主窗口时重置鸣谢子窗口状态，避免下次打开残留
+  useEffect(() => {
+    if (!open) setShowCredits(false);
+  }, [open]);
+
   if (!open) return null;
   return (
-    <div id="infoModal" className="modal-overlay" onClick={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}>
-      <div className="modal-content">
-        <div className="info-title">🌿 生态学演示器</div>
-        <div className="info-sub">基于 Lotka-Volterra 三营养模型</div>
-        <div className="info-desc">
-          <p><strong>📖 教材依据</strong><br />普通高中教科书 · 生物学选择性必修2<br />《生物与环境》</p>
-          <p><strong>🧬 数学模型</strong><br />植物 -&gt; 雪兔 -&gt; 猞猁 三级捕食系统<br />参数可调，展示周期性波动与生态恢复力</p>
-          <p><strong>🤖 AI 助手</strong><br />右侧 AI 抽屉可通过自然语言控制模拟：<br />读取种群、设置数量、启动/暂停/重置。</p>
-        </div>
-        <div className="info-authors">
-          <div className="authors-label">✨ 制作者 ✨</div>
-          <div className="author-names">
-            <span>林炎逸</span>
-            <span>刘子木</span>
+    <>
+      <div
+        id="infoModal"
+        className="modal-overlay"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        <div className="modal-content">
+          <div className="info-title">生态学演示器</div>
+          <div className="info-sub">基于 Lotka-Volterra 三营养模型</div>
+          <div className="info-desc">
+            <p>
+              <strong>教材依据</strong>
+              <br />
+              普通高中教科书 · 生物学选择性必修2
+              <br />
+              《生物与环境》
+            </p>
+            <p>
+              <strong>数学模型</strong>
+              <br />
+              植物 -&gt; 雪兔 -&gt; 猞猁 三级捕食系统
+              <br />
+              参数可调，展示周期性波动与生态恢复力
+            </p>
+            <p>
+              <strong>AI 助手</strong>
+              <br />
+              右侧 AI 抽屉支持自然语言控制模拟与构建模型：
+              <br />
+              读取/设置种群、启停/重置，或构建森林等任意生态模型
+            </p>
+            <p>
+              <strong>源代码</strong>
+              <br />
+              <a
+                href="https://github.com/yanyi-lin/eco-builder"
+                target="_blank"
+                rel="noreferrer"
+              >
+                github.com/yanyi-lin/eco-builder
+              </a>
+            </p>
+          </div>
+          <div className="info-authors">
+            <div className="authors-label">制作者</div>
+            <div className="author-names">
+              <span>林炎逸</span>
+              <span>刘子木</span>
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button className="modal-btn secondary" onClick={onClose}>
+              关闭
+            </button>
+            <button
+              className="modal-btn primary"
+              onClick={() => setShowCredits(true)}
+            >
+              鸣谢
+            </button>
           </div>
         </div>
-        <button className="close-modal" onClick={onClose}>关闭</button>
+      </div>
+      {showCredits && <CreditsModal onClose={() => setShowCredits(false)} />}
+    </>
+  );
+}
+
+/** 鸣谢弹窗：人类贡献者 + 开源/数据支持（嵌套在主窗口之上，z-index 更高） */
+function CreditsModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="modal-overlay credits-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-content credits-content">
+        <div className="info-title">鸣谢</div>
+        <div className="credits-section-title">人类贡献者</div>
+        <div className="credits-item">
+          <span className="credit-name">刘子木（liusonwood）</span>
+          <br />
+          提供 AI 助手交互的最初技术思路与宝贵反馈
+        </div>
+        <div className="credits-section-title">开源与数据支持</div>
+        <div className="credits-item">
+          <span className="credit-name">Vercel AI SDK</span> — AI 聊天与工具调用框架
+        </div>
+        <div className="credits-item">
+          <span className="credit-name">React</span> — 前端 UI 框架
+        </div>
+        <div className="credits-item">
+          <span className="credit-name">Vite</span> — 构建工具
+        </div>
+        <div className="credits-item">
+          <span className="credit-name">Chart.js</span> — 生态曲线图表
+        </div>
+        <div className="credits-item">
+          <span className="credit-name">Express</span> — Node.js 后端框架
+        </div>
+        <div className="credits-item">
+          <span className="credit-name">GBIF</span> — 物种分类数据
+        </div>
+        <div className="credits-item">
+          <span className="credit-name">GloBI</span> — 物种交互数据
+        </div>
+        <div className="credits-note">
+          GBIF 与 GloBI 为开源生态数据平台，本工具的物种与交互查询依赖其数据。
+        </div>
+        <div className="modal-footer">
+          <button className="modal-btn secondary" onClick={onClose}>
+            关闭
+          </button>
+        </div>
       </div>
     </div>
   );

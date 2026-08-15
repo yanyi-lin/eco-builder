@@ -355,6 +355,37 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
 }
 .close-modal:hover { background: #1f452b; transform: scale(0.97); }
 
+/* 鸣谢弹窗（嵌套在 InfoModal 之上，需要更高 z-index） */
+.credits-overlay { z-index: 1100; }
+.credits-content {
+  max-width: 440px;
+  text-align: left;
+  padding: 1.8rem 2rem 1.2rem;
+}
+.credits-content .info-title { text-align: center; }
+.credits-section-title {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: #1a3c2c;
+  margin: 0.9rem 0 0.35rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 2px solid #e2ecd9;
+}
+.credits-item {
+  font-size: 0.92rem;
+  color: #2c4b32;
+  line-height: 1.55;
+  margin: 0.35rem 0;
+}
+.credits-item .credit-name { font-weight: 600; color: #1f452b; }
+.credits-note {
+  font-size: 0.82rem;
+  color: #6b8f6b;
+  margin-top: 0.7rem;
+  line-height: 1.5;
+}
+.info-desc a { color: #2c5e3a; font-weight: 600; }
+
 /* Eco-Tuner 模态框 */
 #ecoTunerModal .modal-content {
   max-width: 700px;
