@@ -4,13 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>生态学教学演示：植物-雪兔-猞猁种群动态模型 | AI 助手</title>
-  <!-- Chart.js 从 CDN 加载，自动后备 -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
-          onerror="this.onerror=null;this.src='https://unpkg.com/chart.js@4.4.0/dist/chart.umd.min.js';"></script>
+  <!-- 本地 vendor（脱离 CDN/外网依赖，见 public/vendor/） -->
+  <script src="/vendor/chart.umd.min.js"></script>
   <!-- marked.js：AI 回复 markdown 渲染 -->
-  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="/vendor/marked.min.js"></script>
   <!-- DOMPurify：净化 HTML，防 XSS -->
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <script src="/vendor/purify.min.js"></script>
 </head>
 <body>
   <div id="root"></div>

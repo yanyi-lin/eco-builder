@@ -1,5 +1,9 @@
 # eco-agent 设计文档
 
+> ⚠️ **迁移说明（2026-08-15）**：项目已从 Cloudflare Workers 迁移为纯 Node.js 服务
+> （详见 `MIGRATION-PLAN.md` 与 `README.md`）。本文档为历史设计记录，其中关于
+> Cloudflare Agent / Worker 代理 / wrangler 部署的描述均已过时，仅作设计思路参考。
+
 > 本文档记录 eco-builder（Agent 引导式生态模拟构建）的设计决策，供后续开发与协作参考。
 
 ## 1. 目标

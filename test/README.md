@@ -16,15 +16,23 @@ npm run verify:feasibility  # 运行独立的可行性校验脚本（25 项场�
 
 | 位置 | 内容 | 运行方式 |
 |---|---|---|
-| **`test/`（本目录）** | 新增的单元/回归测试：worker 模式判定、曲线不可区分度 | `npm test` |
+| **`test/`（本目录）** | 单元/集成测试：模式判定、曲线不可区分度、后端 chat 协议、限流 | `npm test` |
 | **`src/**/*.test.ts`** | 既有 vitest 测试：微分方程（computeStep）、构建工具、可行性分类 | `npm test` |
 | **`scripts/verify-feasibility.ts`** | 独立可行性校验脚本（鲸落/森林/竞争等 25 项场景），非 vitest | `npm run verify:feasibility` |
 
 ## 本目录现有测试
 
-- **`mode-detection.test.ts`** — worker 模式判定逻辑（`worker/mode.ts` 纯函数）：
+- **`mode-detection.test.ts`** — 模式判定逻辑（`server/mode.ts` 纯函数，自 worker 迁移）：
   构建模式 `[MODE: build]` 前缀检测、协议前缀剥离，含 issue #10 回归用例
   （工具 auto-continuation 时最后一条是 assistant 消息，仍应从最后一条 user 消息判定）。
+
+- **`chat-server.test.ts`** — Node 后端集成测试（`server/`）：
+  协议层（mock LLM fetch：纯文本流/工具调用流/`convertToModelMessages` 转 tool 消息/
+  `ignoreIncompleteToolCalls` 残缺 part/[MODE: build] 前缀剥离与系统提示选择）
+  + app 层（健康检查/静态服务/安全头/SPA fallback/400/429 限流/env fail-fast）。
+
+- **`rate-limit.test.ts`** — 全局每日请求限额（`server/rateLimit.ts` 内存版，
+  替代已废弃的 CF `worker/TokenCounter.ts`）：首次计数、累加、跨日重置、超限拒绝。
 
 - **`curve-overlap.test.ts`** — 竞争曲线"不可区分度"检测（`detectCurveOverlap`）：
   对称竞争判糊、不对称竞争不判、类对称反相/崩溃/贴地豁免、捕食关系不参与检测。
@@ -43,14 +51,9 @@ npm run verify:feasibility  # 运行独立的可行性校验脚本（25 项场�
 - **`derivatives.test.ts`** — `derivatives` 实时导数与 `computeStep(dt=1, skipClamp)`
   一致性、捕食/竞争方向性验证。
 
-- **`token-counter.test.ts`** — 全局请求计数器（`worker/TokenCounter.ts`）：首次 INSERT、
-  连续累加、跨日期独立计数（每日重置）、get 查询。通过 mock `cloudflare:workers`
-  的 `DurableObject` 基类在 node 环境实例化。
-
 ## 添加新测试的约定
 
 - 新测试优先放本目录，命名 `*.test.ts`（vitest 自动发现，无需注册）。
-- 若测试对象是 worker 端逻辑（依赖 `cloudflare:workers` / `@cloudflare/ai-chat` 运行时，
-  无法在纯 node 环境实例化），请先把可测的纯逻辑抽取到独立模块（如 `worker/mode.ts`），
-  再对纯函数编写测试。
+- 后端逻辑测试（`server/`）不依赖真实网络：LLM 调用用 `vi.stubGlobal("fetch", ...)`
+  mock（见 `chat-server.test.ts` 的 `mockLLM` helper），不携带真实 API key。
 - 涉及可行性分类的回归场景，可追加到 `scripts/verify-feasibility.ts`。
