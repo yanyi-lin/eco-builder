@@ -7,6 +7,11 @@ import {
 } from "chart.js/auto";
 import type { EcoModelSpec } from "./types";
 
+/** 图表渲染最小间隔（ms）：模拟步进 38ms，全量重绘（900 点 × N 数据集）较贵，
+ *  每步都同步 update 会导致 rAF 任务堆积（Chrome "requestAnimationFrame handler
+ *  用时超 50ms" Violation）。合并 + 节流后渲染频率 ~12fps，曲线仍连续。 */
+const RENDER_INTERVAL_MS = 80;
+
 export interface UseEcoChart {
   /** canvas ref，组件挂到 <canvas> 上 */
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -32,6 +37,10 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
     history: Record<string, number[]>;
     timeData: number[];
   } | null>(null);
+  // 渲染合并/节流：同一帧内多次 setData 只渲染一次；距上次渲染 < RENDER_INTERVAL_MS
+  // 则推迟（修复 rAF Violation：38ms 步进 + 全量重绘导致 rAF 队列堆积）
+  const rafRef = useRef<number | null>(null);
+  const lastRenderAtRef = useRef(0);
 
   const buildDatasets = (currentSpec: EcoModelSpec): ChartDataset<"line">[] => {
     return currentSpec.species.map((s) => ({
@@ -172,12 +181,32 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
   };
 
   /** 销毁 chartRef 持有的实例并清空 ref。仅动 chartRef，不查 canvas 注册表
-   *  （避免在重复挂载循环中误杀新实例）。 */
+   *  （避免在重复挂载循环中误杀新实例）。同时取消待执行的渲染 rAF。 */
   const destroyChart = () => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     if (chartRef.current) {
       chartRef.current.destroy();
       chartRef.current = null;
     }
+  };
+
+  /** 渲染调度（rAF 合并 + 节流）：同帧多次调用只渲染一次；距上次渲染不足
+   *  RENDER_INTERVAL_MS 时推迟到下一帧（数据已更新，仅渲染延迟，视觉无感） */
+  const scheduleRender = (chart: Chart<"line">) => {
+    if (rafRef.current !== null) return; // 已有待执行渲染
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const now = performance.now();
+      if (now - lastRenderAtRef.current < RENDER_INTERVAL_MS) {
+        scheduleRender(chart); // 太频繁，推迟一帧
+        return;
+      }
+      lastRenderAtRef.current = now;
+      chart.update("none");
+    });
   };
 
   const setData = (
@@ -191,13 +220,15 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
     const currentSpec = specRef.current;
     // 防御：dataset 数量与 species 不匹配则跳过（spec 切换瞬间）
     if (chart.data.datasets.length !== currentSpec.species.length) return;
+    // 数据直接更新（轻量：改 data 引用，不触发渲染）
     currentSpec.species.forEach((s, i) => {
       chart.data.datasets[i].data = [...(history[s.id] ?? [])];
     });
     chart.data.labels = timeData.map((t) => t.toFixed(1));
     // 动态适配 Y 轴范围（issue #8）：种群可能超过构建时轴上限，扩展可视区
     applyAxisAutoScale(chart);
-    chart.update("none");
+    // 渲染交给 rAF 合并调度（修复 rAF Violation）
+    scheduleRender(chart);
   };
 
   const resetDatasetsVisibility = () => {

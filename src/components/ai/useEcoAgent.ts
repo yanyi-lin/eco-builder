@@ -110,20 +110,18 @@ export function useEcoAgent(
     // 即自动续发下一轮；LLM 给出纯文本回复（无工具 part）时停止
     sendAutomaticallyWhen: ({ messages }) => {
       const last = messages[messages.length - 1];
+      // 只检查最后一部分（修复 2026-08-15 无限循环）：
+      // ai 6.0.230 useChat 续发时基于占位消息累积 parts（replace 而非 push），
+      // 历史的 output-available 工具 part 会永远留在消息里——若检查"任意
+      // output-available part"会恒 true → 无限续发。改为检查末尾：
+      // 续发响应把新的 text/tool parts 追加到末尾，末尾是已完成工具输出才续发
+      // （等价 CF 版 autoContinueAfterToolResult），纯文本收尾则停止。
       if (!last || last.role !== "assistant") return false;
-      const toolParts = last.parts.filter(isToolUIPart);
-      const shouldSend = toolParts.some(
-        (p) => p.state === "output-available" || p.state === "output-error",
+      const lastPart = last.parts[last.parts.length - 1];
+      return (
+        isToolUIPart(lastPart) &&
+        (lastPart.state === "output-available" || lastPart.state === "output-error")
       );
-      // 诊断：存在工具 part 但状态未完成（如 input-available 残留）→ 记录，
-      // 用于排查"工具执行后未续发"（2026-08-15 卡住问题诊断）
-      if (toolParts.length > 0 && !shouldSend) {
-        console.warn(
-          "[useEcoAgent] sendAutomaticallyWhen=false 但存在工具 part:",
-          toolParts.map((p) => ({ type: p.type, state: p.state })),
-        );
-      }
-      return shouldSend;
     },
     onToolCall: async ({ toolCall }) => {
       const toolName = String(toolCall.toolName);
