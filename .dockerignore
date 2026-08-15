@@ -1,0 +1,15 @@
+# Docker build context 排除项
+node_modules/
+dist/
+dist-server/
+.npm-cache/
+.wrangler/
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+*.local
+session.md
+AUDIT-REPORT.md

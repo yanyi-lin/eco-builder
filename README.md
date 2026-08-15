@@ -31,37 +31,44 @@
 
 ## 🖥️ 部署
 
-### 方式一：本地开发
+项目由两部分组成：**前端**（Vite 构建的静态资源）与 **Node.js 后端**（AI 聊天 `/api/chat` + 静态服务），后端内置静态资源服务，因此生产环境**一个进程**即可运行完整应用。
+
+### 方式一：本地开发（WSL / 任意 Linux）
 
 ```bash
 npm install
-npm run dev          # http://localhost:5173（模拟器可独立运行）
+cp .env.example .env        # 填入 OPENAI_API_KEY
+npm run dev:server          # 终端 1：后端 http://localhost:3000
+npm run dev                 # 终端 2：前端 http://localhost:5173（/api 自动代理到 3000）
 ```
 
-### 方式二：Cloudflare Workers 部署（含 AI 助手）
+### 方式二：宝塔面板部署（推荐，面向非开发者）
+
+> 前置要求：宝塔面板 **11.0+**，软件商店安装 **Node.js 版本管理器**（2.7+）。
+
+1. **装 Node**：软件商店 → Node.js 版本管理器 → 安装 **Node 20 或 22 LTS** → 点「设置命令行版本」选择它（版本列表不全先点「更新版本列表」）。
+2. **上传代码**：把项目上传到网站目录（默认 `/www/wwwroot/eco-builder`），或使用宝塔的 Git 拉取功能。
+3. **构建**：在项目目录执行 `npm install && npm run build`（或在面板终端执行）。
+4. **添加 Node 项目**：网站 → Node 项目 → 添加：项目目录选项目根，启动方式选 **自定义 ecosystem.config.cjs**，端口 **3000**，运行用户 **www**，Node 版本选刚装的 20/22。
+   - ⚠️ `ecosystem.config.cjs` 里的 `name` 必须与**面板中的项目名称完全一致**，否则面板显示"未启动"。
+   - ⚠️ 环境变量（`OPENAI_API_KEY` 等）写在 `ecosystem.config.cjs` 的 `env` 段（或面板"环境变量"栏）；**不要用 `env_production`**（宝塔执行 pm2 时不注入）。
+5. **反向代理**：网站 → 添加站点（填域名）→ 设置 → 反向代理 → 目标 URL 填 `http://127.0.0.1:3000`。
+6. **防火墙**：安全组/防火墙只需放行 **80/443**（3000 保持内网，勿暴露）。
+7. **开机自启**（重要）：宝塔 → 计划任务 → Shell 脚本 → 执行周期选「开机时」，内容：
+   `/bin/bash /www/server/nodejs/vhost/scripts/{项目名}.sh &`（部署完成后**实测一次服务器重启**确认自动恢复）。
+8. **HTTPS**（可选）：网站 → SSL → 申请 Let's Encrypt 证书，一键开启。
+
+### 方式三：Docker（备选，需要 SSH 操作）
 
 ```bash
-npm install
-npm run build                 # 构建前端到 dist/
-
-# 本地开发（含 AI）
-cp .dev.vars.example .dev.vars   # 填入 OPENAI_API_KEY
-npx wrangler dev
-
-# 生产部署
-npx wrangler secret put OPENAI_API_KEY
-npx wrangler deploy
+# 构建镜像（Dockerfile 见仓库根目录）
+docker build -t eco-builder .
+# 运行（替换环境变量）
+docker run -d --name eco-builder -p 3000:3000 \
+  -e OPENAI_API_KEY=sk-xxx -e OPENAI_BASE_URL=https://api.deepseek.com \
+  -e OPENAI_MODEL=deepseek-v4-flash eco-builder
+# 再用宝塔/nginx 反代 127.0.0.1:3000（或宝塔 9.3.0+ 的"容器反向代理"）
 ```
-
-### 方式三：Cloudflare Workers Builds（Git 自动部署）
-
-| 设置项 | 值 |
-|--------|-----|
-| Root directory | 仓库根（含 `wrangler.jsonc` 的目录） |
-| Build command | `npm run build` |
-| Deploy command | `npx wrangler deploy` |
-
-环境变量在 **Settings → Build → Build Variables and Secrets** 配置（`OPENAI_API_KEY` 设为 Secret）。
 
 ---
 
@@ -71,17 +78,18 @@ npx wrangler deploy
 |------|------|------|
 | `OPENAI_BASE_URL` | OpenAI 兼容 API base URL（`/chat/completions` 自动拼接） | `https://api.deepseek.com` |
 | `OPENAI_MODEL` | 模型名 | `deepseek-v4-flash` |
-| `OPENAI_API_KEY` | API Key（secret，不入 wrangler.jsonc） | `sk-...` |
+| `OPENAI_API_KEY` | API Key（secret，不提交仓库） | `sk-...` |
+| `PORT` | 服务监听端口（默认 3000） | `3000` |
 
-- `OPENAI_BASE_URL` 与 `OPENAI_MODEL` 在 `wrangler.jsonc` 的 `vars` 配置。
-- `OPENAI_API_KEY` 用 `wrangler secret put` 设置（生产）或 `.dev.vars`（本地，已 gitignore）。
+- 本地开发：复制 `.env.example` 为 `.env` 填写（`.env` 已被 gitignore）。
+- 宝塔部署：写在 `ecosystem.config.cjs` 的 `env` 段（或面板"环境变量"栏）。
 - 兼容任意 OpenAI Chat Completions 兼容端点（DeepSeek / 官方 OpenAI / 第三方网关 / Ollama），由 `@ai-sdk/openai-compatible` 驱动。
 
 ---
 
 ## 🤖 AI 助手与工具
 
-AI 助手基于 **Cloudflare Agents SDK**（`AIChatAgent` + `useAgentChat`）实现：Worker 端声明工具 schema（不提供 `execute`），实际执行在浏览器 `onToolCall` 中直接操作模拟器/构建器状态，`autoContinueAfterToolResult` 自动续轮。
+AI 助手基于 **Vercel AI SDK**（`ai` + `@ai-sdk/react`）实现：Node 服务端（`server/`）声明工具 schema 并调用 OpenAI 兼容 API 流式生成，工具的实际执行在浏览器 `onToolCall` 中直接操作模拟器/构建器状态，`sendAutomaticallyWhen` 自动续轮（工具执行完成后自动继续下一轮 LLM 调用）。
 
 ### 模拟模式工具
 
@@ -151,10 +159,14 @@ AI 助手基于 **Cloudflare Agents SDK**（`AIChatAgent` + `useAgentChat`）实
 │   │   └── ecoTools.ts           # 模拟工具执行器
 │   ├── components/               # UI（ChartPanel / BuilderPanel / EcoTuner / AI 抽屉等）
 │   └── styles.css
-├── worker/
-│   ├── index.ts                  # routeAgentRequest + 静态资源 fallback + CORS/安全头
-│   ├── EcoChatAgent.ts           # AIChatAgent + 12 工具 schema + token 限额
-│   └── env.d.ts
+├── server/                       # Node.js 后端（AI 聊天 + 静态服务，脱离 Cloudflare）
+│   ├── index.ts                  # Express 入口（/api/chat + 静态 + SPA fallback + 安全头 + 限流）
+│   ├── chat.ts                   # streamText 聊天处理器（系统提示/工具集/步数上限）
+│   ├── prompts.ts                # 模拟/构建模式系统提示词
+│   ├── tools.ts                  # 12 个 AI 工具 schema（执行在浏览器端）
+│   ├── mode.ts                   # [MODE: build] 前缀判定与剥离（纯函数）
+│   └── rateLimit.ts              # 每日请求限额（内存版）
+├── ecosystem.config.cjs          # 宝塔面板 PM2 部署配置
 ├── scripts/verify-feasibility.ts # 数值可行性回归测试
 └── data/raw/                     # 生态数据预取缓存
 ```
@@ -176,7 +188,8 @@ npm run verify:feasibility   # 数值可行性回归（鲸落/草兔狼/竞争�
 - [Chart.js](https://www.chartjs.org/) v4 – 动态折线图（CDN）
 - [marked](https://marked.js.org/) + [DOMPurify](https://github.com/cure53/DOMPurify) – AI 回复 markdown 渲染与净化（CDN）
 - [React](https://react.dev/) 19 + [Vite](https://vitejs.dev/) 6 – 前端框架与构建
-- [Cloudflare Agents SDK](https://developers.cloudflare.com/agents/)（`agents` / `@cloudflare/ai-chat` / `ai` / `@ai-sdk/openai-compatible`）– AI Agent 与 OpenAI 兼容接入
+- [Vercel AI SDK](https://ai-sdk.dev/)（`ai` / `@ai-sdk/react` / `@ai-sdk/openai-compatible`）– AI 聊天（Node 服务端流式生成 + 客户端工具执行）
+- [Express](https://expressjs.com/) 5 – Node 后端（静态资源 + API + SPA fallback）
 - [zod](https://zod.dev/) – 工具输入 schema 校验
 
 ---
