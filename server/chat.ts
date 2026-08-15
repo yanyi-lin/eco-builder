@@ -76,6 +76,17 @@ export async function handleChatRequest(
       ? [hasToolCall("run-model"), stepCountIs(60)]
       : stepCountIs(20),
     abortSignal: signal,
+    // 诊断日志：区分"前端续发问题"与"LLM 厂商 API 问题"（2026-08-15 排查"工具后卡住"）
+    onError: (err) => {
+      console.error(`[chat] streamText 错误 (mode=${isBuildMode ? "build" : "simulate"}, messages=${messages.length}):`, err);
+    },
+    onFinish: (event) => {
+      console.log(
+        `[chat] 完成 mode=${isBuildMode ? "build" : "simulate"} messages=${messages.length} ` +
+          `finishReason=${event.finishReason} steps=${event.steps?.length ?? "?"} ` +
+          `用时=${((event as { response?: { latencyMs?: number } }).response?.latencyMs ?? "?").toString()}ms`,
+      );
+    },
   });
 
   return result.toUIMessageStreamResponse();

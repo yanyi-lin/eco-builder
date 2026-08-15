@@ -82,6 +82,23 @@ function userMsg(text: string) {
   return { id: "m1", role: "user" as const, parts: [{ type: "text" as const, text }] };
 }
 
+/** 构造一条 assistant 工具结果消息（output-available，模拟前端 onToolCall 执行后） */
+function assistantToolMsg(toolCallId: string, toolName: string, output: unknown) {
+  return {
+    id: `m-${toolCallId}`,
+    role: "assistant" as const,
+    parts: [{
+      type: "tool-invocation" as const,
+      toolCallId,
+      toolName,
+      state: "output-available" as const,
+      args: {},
+      input: {},
+      output,
+    }],
+  };
+}
+
 beforeAll(() => {
   process.env.OPENAI_BASE_URL = "http://mock.local";
   process.env.OPENAI_API_KEY = "mock-key";
@@ -93,6 +110,36 @@ afterEach(() => {
 });
 
 describe("handleChatRequest 协议", () => {
+  it("连续多轮工具调用（构建模式场景）：工具→工具→文本", async () => {
+    // 轮1：LLM 返回 add-species 工具调用
+    mockLLM(toolChunks("add-species"));
+    const r1 = await handleChatRequest([userMsg("[MODE: build] 构建森林生态系统")]);
+    const e1 = await collectUIStream(r1);
+    expect(e1.some((e) => e.type === "tool-input-start" && e.toolName === "add-species")).toBe(true);
+
+    // 轮2：带 add-species 结果，LLM 返回 add-relation
+    const getBody2 = mockLLM(toolChunks("add-relation"));
+    const r2 = await handleChatRequest([
+      userMsg("[MODE: build] 构建森林生态系统"),
+      assistantToolMsg("call_1", "add-species", { id: "tree", name: "树" }),
+    ]);
+    const e2 = await collectUIStream(r2);
+    expect(e2.some((e) => e.type === "tool-input-start" && e.toolName === "add-relation")).toBe(true);
+    // convertToModelMessages 已把工具结果转成 tool 消息发给 LLM
+    const body2 = getBody2() as { messages: { role: string }[] };
+    expect(body2.messages.some((m) => m.role === "tool")).toBe(true);
+
+    // 轮3：带两条工具结果，LLM 返回纯文本
+    mockLLM(textChunks("模型已构建完成"));
+    const r3 = await handleChatRequest([
+      userMsg("[MODE: build] 构建森林生态系统"),
+      assistantToolMsg("call_1", "add-species", { id: "tree", name: "树" }),
+      assistantToolMsg("call_2", "add-relation", { type: "predation", prey: "leaf", predator: "deer" }),
+    ]);
+    const e3 = await collectUIStream(r3);
+    expect(e3.some((e) => e.type === "text-delta" && String(e.delta).includes("构建完成"))).toBe(true);
+  });
+
   it("纯文本回复：输出 text-delta 流并以 stop 结束", async () => {
     mockLLM(textChunks("你好，这是测试回复。"));
     const res = await handleChatRequest([userMsg("你好")]);

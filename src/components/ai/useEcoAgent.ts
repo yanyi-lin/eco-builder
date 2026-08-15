@@ -111,11 +111,19 @@ export function useEcoAgent(
     sendAutomaticallyWhen: ({ messages }) => {
       const last = messages[messages.length - 1];
       if (!last || last.role !== "assistant") return false;
-      return last.parts.some(
-        (p) =>
-          isToolUIPart(p) &&
-          (p.state === "output-available" || p.state === "output-error"),
+      const toolParts = last.parts.filter(isToolUIPart);
+      const shouldSend = toolParts.some(
+        (p) => p.state === "output-available" || p.state === "output-error",
       );
+      // 诊断：存在工具 part 但状态未完成（如 input-available 残留）→ 记录，
+      // 用于排查"工具执行后未续发"（2026-08-15 卡住问题诊断）
+      if (toolParts.length > 0 && !shouldSend) {
+        console.warn(
+          "[useEcoAgent] sendAutomaticallyWhen=false 但存在工具 part:",
+          toolParts.map((p) => ({ type: p.type, state: p.state })),
+        );
+      }
+      return shouldSend;
     },
     onToolCall: async ({ toolCall }) => {
       const toolName = String(toolCall.toolName);
@@ -145,13 +153,22 @@ export function useEcoAgent(
       } catch (err) {
         errText = `工具执行失败: ${err instanceof Error ? err.message : String(err)}`;
       }
-      // 写入工具结果（useChat 返回的 addToolOutput；SDK 在流结束后据此触发
-      // sendAutomaticallyWhen 续发，LLM 看到结果继续下一轮）
-      await chat.addToolOutput({
-        toolCallId: toolCall.toolCallId,
-        tool: toolName,
-        output: errText ? { error: errText } : (output as Record<string, unknown>),
-      });
+      // 写入工具结果。**不能 await**：SDK 处理工具 chunk（含 onToolCall）时正占用其
+      // 内部 SerialJobExecutor，await addToolOutput（内部再入队）会死锁——J2 等 J1，
+      // J1 等 onToolCall，onToolCall 等 J2，永久挂起（表现为"工具调用后卡住、无报错"）。
+      // 不 await 时 addToolOutput 任务会在当前 chunk 处理完成后由队列立即执行，
+      // 先于流结束后的 sendAutomaticallyWhen 检查，时序正确（诊断修复 2026-08-15）。
+      Promise.resolve()
+        .then(() =>
+          chat.addToolOutput({
+            toolCallId: toolCall.toolCallId,
+            tool: toolName,
+            output: errText ? { error: errText } : (output as Record<string, unknown>),
+          }),
+        )
+        .catch((err) => {
+          console.warn("[useEcoAgent] addToolOutput 失败:", err);
+        });
     },
   });
 

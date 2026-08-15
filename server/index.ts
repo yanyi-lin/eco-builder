@@ -74,9 +74,11 @@ export function createApp(): express.Express {
 
   // AI 聊天端点（与 useChat 协议：POST { messages, id } → UIMessageStream）
   app.post("/api/chat", async (req, res) => {
+    const startedAt = Date.now();
     // 全局每日请求限制（单进程内存计数；语义同 CF 版 TokenCounter）
     const { allowed } = incrementRequest();
     if (!allowed) {
+      console.warn(`[api/chat] 429 限流命中 count=${incrementRequest().count - 1}`);
       res.status(429).json({
         error: `今日请求次数已达上限（${DAILY_REQUEST_LIMIT.toLocaleString()}），剩余 0。请明日再试。`,
       });
@@ -88,12 +90,14 @@ export function createApp(): express.Express {
       res.status(400).json({ error: "请求体需包含 messages 数组（UIMessage[]）" });
       return;
     }
+    console.log(`[api/chat] 收到请求 messages=${body.messages.length} id=${(body as { id?: string }).id ?? "-"}`);
 
     try {
       const response = await handleChatRequest(body.messages, req.signal);
       await sendWebResponse(res, response);
+      console.log(`[api/chat] 响应完成 用时=${Date.now() - startedAt}ms`);
     } catch (err) {
-      console.error("[api/chat] 处理失败:", err);
+      console.error(`[api/chat] 处理失败 用时=${Date.now() - startedAt}ms:`, err);
       if (!res.headersSent) {
         res.status(500).json({ error: "聊天服务内部错误" });
       }
