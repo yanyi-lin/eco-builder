@@ -1,7 +1,6 @@
 import { useMemo, useRef } from "react";
-import { useAgent } from "agents/react";
-import { useAgentChat } from "@cloudflare/ai-chat/react";
-import type { UIMessage } from "ai";
+import { useChat } from "@ai-sdk/react";
+import { isToolUIPart, type UIMessage } from "ai";
 import type { UseEcoSimulation } from "../../eco/useEcoSimulation";
 import type { UseEcoBuilder } from "../../eco/useEcoBuilder";
 import { executeTool, type EcoApi } from "../../tools/ecoTools";
@@ -16,9 +15,13 @@ export interface UseEcoAgent {
 }
 
 /**
- * 组合 useAgent + useAgentChat，根据当前模式分发工具执行。
- * 模拟模式：执行生态模拟工具（read/set/start/pause/restart）
- * 构建模式：执行 builder 工具（search-species/query-interactions/add-species 等）
+ * 组合 useChat（Vercel AI SDK），根据当前模式分发工具执行。
+ * 迁移自 useAgent + useAgentChat（Cloudflare Agents），MIGRATION-PLAN §4 要点：
+ * - useChat 从 @ai-sdk/react 导入（ai@6 无 ai/react 子路径）
+ * - onToolCall 执行工具后用 useChat 返回的 addToolOutput 写入结果
+ * - sendAutomaticallyWhen 复刻 CF 版 autoContinueAfterToolResult: true
+ *   （最后一条 assistant 消息含已完成工具输出 → 自动续发下一轮）
+ * - 工具执行串行链保留（双保险，防 React #185 重渲染风暴）
  */
 export function useEcoAgent(
   sim: UseEcoSimulation,
@@ -32,14 +35,9 @@ export function useEcoAgent(
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   }, []);
 
-  const agent = useAgent({
-    agent: "EcoChat",
-    name: sessionId,
-  });
-
   const hasRead = useRef(false);
 
-  // 构造 EcoApi，使用 ref 持有最新 sim 状态避免闭包陷阱
+  // 构造 EcoApi，使用 ref 持有最新 sim 状态避免闭包陷阱（与 CF 版一致）
   const simRef = useRef(sim);
   simRef.current = sim;
 
@@ -81,7 +79,6 @@ export function useEcoAgent(
         return builderRef.current.state;
       },
       setSpecies: (species) => {
-        // 直接调用 builder 的 setSpecies 方法
         builderRef.current.api.setSpecies(species);
       },
       addSpecies: (species) => builderRef.current.addSpecies(species),
@@ -89,7 +86,6 @@ export function useEcoAgent(
       addRelation: (relation) => builderRef.current.addRelation(relation),
       removeRelation: (index) => builderRef.current.removeRelation(index),
       setParams: (params) => {
-        // 直接调用 builder 的 setParams 方法
         builderRef.current.api.setParams(params);
       },
       buildAndRun: (spec) => {
@@ -99,70 +95,78 @@ export function useEcoAgent(
     [],
   );
 
-  // 工具执行串行链：useAgentChat 可能并发触发多个 onToolCall（尤其构建模式
-  // 连续 add-species/add-relation）。并发工具完成时多个 setState 同时触发，
-  // 在 React 19 + autoContinue 下易引发"Maximum update depth exceeded"（#185）。
-  // 用 Promise 链把所有工具执行排成串行，每次只处理一个。
+  // 工具执行串行链：SDK 层已强制串行（onToolCall 被 await），保留链作双保险，
+  // 确保工具执行 + addToolOutput 整体排队（React #185 防护）
   const toolChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
-  const { messages, sendMessage, status, isStreaming, clearHistory } =
-    useAgentChat({
-      agent,
-      getInitialMessages: null,
-      resume: false,
-      autoContinueAfterToolResult: true,
-      // 节流 useSyncExternalStore 订阅通知（AI SDK 官方逃生通道，上游 #1361/#1732）：
-      // agents 0.17.4 每帧同步 setMessages + ReactChatState 同步 fan-out，
-      // 在连续工具调用的密集帧窗口内触发 React #185（嵌套更新超限）。
-      // 0.18.0 已加 resume 串行门治本，此处再加节流作双保险。
-      experimental_throttle: 32,
-      onToolCall: async ({ toolCall, addToolOutput }) => {
-        const toolName = toolCall.toolName;
-        const args =
-          (toolCall.input && typeof toolCall.input === "object"
-            ? toolCall.input
-            : {}) as Record<string, unknown>;
+  const chat = useChat({
+    id: sessionId,
+    // api 默认 /api/chat（ai@6 HttpChatTransport 默认值，与本项目 Node 服务端一致）
+    // 节流 useSyncExternalStore 订阅通知（AI SDK 官方逃生通道）：
+    // 连续工具调用的密集帧窗口内触发 React #185（嵌套更新超限），与 CF 版同款防护
+    experimental_throttle: 32,
+    // 等价 CF 版 autoContinueAfterToolResult: true：
+    // 最后一条 assistant 消息含已完成工具输出（output-available/output-error）
+    // 即自动续发下一轮；LLM 给出纯文本回复（无工具 part）时停止
+    sendAutomaticallyWhen: ({ messages }) => {
+      const last = messages[messages.length - 1];
+      if (!last || last.role !== "assistant") return false;
+      return last.parts.some(
+        (p) =>
+          isToolUIPart(p) &&
+          (p.state === "output-available" || p.state === "output-error"),
+      );
+    },
+    onToolCall: async ({ toolCall }) => {
+      const toolName = String(toolCall.toolName);
+      const args =
+        (toolCall.input && typeof toolCall.input === "object"
+          ? toolCall.input
+          : {}) as Record<string, unknown>;
 
-        // 加入串行队列：工具执行 + addToolOutput 整体串行，
-        // 确保并发工具调用的 setState 不会同时触发（React #185 防护）
-        const myRun = toolChainRef.current.then(async () => {
-          let output: unknown;
-          // 根据模式分发工具执行
-          if (modeRef.current === "build") {
-            output = await executeBuilderTool(toolName, args, builderApi);
-          } else {
-            output = await executeTool(toolName, args, simApi);
-          }
-          return output;
-        });
-        // 更新链尾（供下一个工具排队）；异常时链不中断
-        toolChainRef.current = myRun.catch(() => undefined);
-
+      // 加入串行队列：工具执行整体串行（与 CF 版 toolChainRef 语义一致）
+      const myRun = toolChainRef.current.then(async () => {
         let output: unknown;
-        let errText: string | undefined;
-        try {
-          output = await myRun;
-        } catch (err) {
-          errText = `工具执行失败: ${err instanceof Error ? err.message : String(err)}`;
+        // 根据模式分发工具执行
+        if (modeRef.current === "build") {
+          output = await executeBuilderTool(toolName, args, builderApi);
+        } else {
+          output = await executeTool(toolName, args, simApi);
         }
-        addToolOutput({
-          toolCallId: toolCall.toolCallId,
-          output: errText ? { error: errText } : (output as Record<string, unknown>),
-        });
-      },
-    });
+        return output;
+      });
+      // 更新链尾（供下一个工具排队）；异常时链不中断
+      toolChainRef.current = myRun.catch(() => undefined);
+
+      let output: unknown;
+      let errText: string | undefined;
+      try {
+        output = await myRun;
+      } catch (err) {
+        errText = `工具执行失败: ${err instanceof Error ? err.message : String(err)}`;
+      }
+      // 写入工具结果（useChat 返回的 addToolOutput；SDK 在流结束后据此触发
+      // sendAutomaticallyWhen 续发，LLM 看到结果继续下一轮）
+      await chat.addToolOutput({
+        toolCallId: toolCall.toolCallId,
+        tool: toolName,
+        output: errText ? { error: errText } : (output as Record<string, unknown>),
+      });
+    },
+  });
 
   const send = (text: string) => {
-    // 在构建模式下，自动添加模式标记，让 LLM 知道当前模式
+    // 构建模式下自动添加模式标记（服务端据此判定模式并剥离，MessageList 显示时剥离）
     const modePrefix = modeRef.current === "build" ? "[MODE: build] " : "";
-    sendMessage({ text: modePrefix + text });
+    chat.sendMessage({ text: modePrefix + text });
   };
 
   return {
-    messages,
-    status,
-    isStreaming,
+    messages: chat.messages,
+    status: chat.status,
+    // useChat 无 isStreaming，由 status 推导（submitted=已提交/streaming=流式）
+    isStreaming: chat.status === "submitted" || chat.status === "streaming",
     sendMessage: send,
-    clearHistory,
+    clearHistory: () => chat.setMessages([]),
   };
 }

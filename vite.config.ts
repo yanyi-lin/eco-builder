@@ -8,8 +8,15 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: false,
   },
+  server: {
+    // 本地开发：前端 5173 → 后端 3000（npm run dev:server）。
+    // 生产部署为同源（Node 服务直接出静态 + /api），无需代理。
+    proxy: {
+      "/api": "http://localhost:3000",
+    },
+  },
   define: {
-    // 暴露给前端的直连开关（仅本地测试用，生产走 Worker 代理）
+    // 暴露给前端的直连开关（仅本地测试用）
     "import.meta.env.VITE_DIRECT_OPENAI": JSON.stringify(process.env.VITE_DIRECT_OPENAI ?? ""),
   },
 });

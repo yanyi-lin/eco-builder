@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { UIMessage } from "ai";
 import { getToolName, isToolUIPart } from "ai";
-import { getToolInput, getToolOutput } from "@cloudflare/ai-chat/react";
 
 interface MessageListProps {
   messages: UIMessage[];
@@ -95,24 +94,10 @@ function MessageItem({ msg }: { msg: UIMessage }) {
             return "tool";
           }
         })();
-        const input = (() => {
-          try {
-            return getToolInput(part);
-          } catch {
-            return undefined;
-          }
-        })();
-        // 错误判定双通道：part.state === "output-error"（SDK 层面标记）
-        // 或工具输出对象含 error 字段（executeTool/executeBuilderTool 返回
-        // {error: "..."} 时 state 仍为 output-available，历史 bug 导致
-        // "未知工具"却显示 ✓，见 issue #10）。
-        const output = (() => {
-          try {
-            return getToolOutput(part);
-          } catch {
-            return undefined;
-          }
-        })();
+        // ai v6 ToolUIPart 直接带 input/output 字段（迁移自 @cloudflare/ai-chat/react 的
+        // getToolInput/getToolOutput——纯字段读取，现内联等价实现）
+        const input = (part as { input?: unknown }).input;
+        const output = (part as { output?: unknown }).output;
         const isError =
           (part as unknown as { state?: string }).state === "output-error" ||
           (output !== undefined &&

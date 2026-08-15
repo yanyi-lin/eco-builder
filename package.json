@@ -4,22 +4,31 @@
   "private": true,
   "description": "基于 Lotka-Volterra 三营养级模型的交互式生态学教学演示，含 AI Agent 助手",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev:server": "tsx watch server/index.ts",
+    "build": "tsc -b && vite build && npm run build:server",
+    "build:server": "tsc -p tsconfig.server.json",
+    "start": "node dist-server/index.js",
     "preview": "vite preview",
     "wrangler:dev": "wrangler dev",
     "wrangler:deploy": "wrangler deploy",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run",
     "verify:feasibility": "mkdir -p /tmp && esbuild scripts/verify-feasibility.ts --bundle --platform=node --format=esm --outfile=/tmp/verify-feasibility.mjs && node /tmp/verify-feasibility.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.62",
+    "@ai-sdk/react": "^3.0.232",
     "@cloudflare/ai-chat": "^0.9.4",
     "agents": "^0.18.0",
     "ai": "^6.0.0",
     "chart.js": "^4.4.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zod": "^4.4.3"
@@ -27,9 +36,12 @@
   "devDependencies": {
     "@emnapi/core": "1.11.2",
     "@emnapi/runtime": "1.11.2",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.2.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "tsx": "^4.23.12",
     "typescript": "^5.6.3",
     "vite": "^6.4.3",
     "vitest": "^4.1.10",
