@@ -1,23 +1,36 @@
-# 🌿 生态学教学演示：AI 引导式生态模型构建器
+# eco-builder：智能体协助的生态模型构建器
 
-基于 **Lotka-Volterra 模型**的交互式生态学教学工具，面向高中生物学教学（选择性必修2《生物与环境》）。支持两类用法：
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+[![CI](https://github.com/yanyi-lin/eco-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/yanyi-lin/eco-builder/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white)](package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 
-- **模拟模式**：观察内置"植物-雪兔-猞猁"三营养级系统的周期性波动，实时扰动、调参。
-- **构建模式**：通过自然语言让 **AI 助手**帮你构建任意生态模型（捕食/竞争/互利），并自动做数值可行性校验。
+基于 **Lotka-Volterra 模型**的交互式生态学教学工具，面向高中生物学教学（选择性必修2《生物与环境》）。**智能体协助**：通过自然语言即可构建、模拟与分析任意生态模型。支持中/英双语界面（右上角切换，AI 回复自动跟随输入语言）。
+
+## 目录
+
+- [特性](#特性)
+- [部署](#部署)
+- [环境变量](#环境变量)
+- [智能体助手与工具](#智能体助手与工具)
+- [模型核心方程](#模型核心方程)
+- [文件结构](#文件结构)
+- [测试](#测试)
+- [依赖](#依赖)
 
 ---
 
-## ✨ 特性
+## 特性
 
 ### 模拟模式
 - **三营养级动态模拟**：植物（资源）→ 雪兔（初级消费者）→ 猞猁（次级消费者），呈现典型时滞性周期振荡。
 - **双 Y 轴图表**：生产者密度（左轴）与消费者密度（右轴）独立刻度，曲线清晰。
-- **交互控制**：▶️ 开始 / ⏸️ 暂停 / 🔄 重置模拟。
+- **交互控制**：开始 / 暂停 / 重置模拟。
 - **生态扰动实验**：一键减少任意种群 10% / 30% / 50%，观察系统恢复力。
 - **Eco-Tuner**：调节动力学参数与初始种群数量。
 
-### 构建模式（AI 引导）
-- **自然语言构建**：说"构建森林生态系统"或"构建大小草履虫竞争培养液"，AI 自动查数据、加组分、定关系、跑模拟。
+### 构建模式（智能体引导）
+- **自然语言构建**：说"构建森林生态系统"或"构建大小草履虫竞争培养液"，智能体自动查数据、加组分、定关系、跑模拟。
 - **多关系支持**：捕食（predation）、竞争（competition）、互利（mutualism）。
 - **数据驱动**：GBIF 查物种拉丁名、GloBI 查物种间交互关系。
 - **可行性自动校验**：构建后自动执行"检测 → 修改 → 再检测"循环——
@@ -27,11 +40,15 @@
 - **竞争/资源耗竭建模**：支持 Gause 竞争排斥实验（有限培养液耗尽 → 双方归零）。
 - **组分数量不限**（软护栏 20 个），构建大型食物网。
 
+### 双语支持
+- 右上角语言切换（中文 / EN），全站界面（含图表轴、弹窗、按钮）即时切换并记忆。
+- AI 回复语言自动跟随用户输入（无法判断时使用界面语言）；工具输出由智能体转述。
+
 ---
 
-## 🖥️ 部署
+## 部署
 
-项目由两部分组成：**前端**（Vite 构建的静态资源）与 **Node.js 后端**（AI 聊天 `/api/chat` + 静态服务），后端内置静态资源服务，因此生产环境**一个进程**即可运行完整应用。
+项目由两部分组成：**前端**（Vite 构建的静态资源）与 **Node.js 后端**（AI 聊天 `/api/chat` + 静态服务），后端内置静态资源服务，因此生产环境**一个进程**即可运行完整应用。同一套代码支持 4 种部署方式（Hono 双运行时架构）。
 
 ### 方式一：本地开发（WSL / 任意 Linux）
 
@@ -92,7 +109,7 @@ npx wrangler deploy                       # 绑定自定义域名后在 CF 面�
 
 ---
 
-## 🔧 环境变量
+## 环境变量
 
 | 变量 | 说明 | 示例 |
 |------|------|------|
@@ -110,9 +127,9 @@ npx wrangler deploy                       # 绑定自定义域名后在 CF 面�
 
 ---
 
-## 🤖 AI 助手与工具
+## 智能体助手与工具
 
-AI 助手基于 **Vercel AI SDK**（`ai` + `@ai-sdk/react`）实现：Node 服务端（`server/`）声明工具 schema 并调用 OpenAI 兼容 API 流式生成，工具的实际执行在浏览器 `onToolCall` 中直接操作模拟器/构建器状态，`sendAutomaticallyWhen` 自动续轮（工具执行完成后自动继续下一轮 LLM 调用）。
+智能体助手基于 **Vercel AI SDK**（`ai` + `@ai-sdk/react`）实现：Node 服务端（`server/`）声明工具 schema 并调用 OpenAI 兼容 API 流式生成，工具的实际执行在浏览器 `onToolCall` 中直接操作模拟器/构建器状态，`sendAutomaticallyWhen` 自动续轮（工具执行完成后自动继续下一轮 LLM 调用）。
 
 ### 模拟模式工具
 
@@ -140,7 +157,7 @@ AI 助手基于 **Vercel AI SDK**（`ai` + `@ai-sdk/react`）实现：Node 服�
 
 ---
 
-## 📐 模型核心方程
+## 模型核心方程
 
 通用微分方程由 `src/eco/derivatives.ts` 按 `EcoModelSpec` 动态生成：
 
@@ -157,16 +174,17 @@ AI 助手基于 **Vercel AI SDK**（`ai` + `@ai-sdk/react`）实现：Node 服�
 
 ---
 
-## 📂 文件结构
+## 文件结构
 
 ```
 .
-├── index.html                    # Vite 入口（Chart.js / marked / DOMPurify CDN）
+├── index.html                    # Vite 入口（本地 vendor 资源）
 ├── package.json / vite.config.ts / tsconfig*.json
 ├── wrangler.jsonc                # Cloudflare Workers 配置
-├── .dev.vars.example             # 环境变量示例
+├── .env.example / .dev.vars.example  # 环境变量示例
 ├── src/
 │   ├── main.tsx / App.tsx        # 应用入口 + 模式切换
+│   ├── i18n/                     # 双语支持（LanguageProvider / 文案表）
 │   ├── eco/                      # 生态模拟核心（纯 TS，框架无关）
 │   │   ├── types.ts              # SpeciesDef / RelationDef / EcoModelSpec
 │   │   ├── derivatives.ts        # 按 spec 动态生成 dN/dt（委托 computeStep）
@@ -180,13 +198,13 @@ AI 助手基于 **Vercel AI SDK**（`ai` + `@ai-sdk/react`）实现：Node 服�
 │   │   ├── builderTools.ts       # 构建工具执行器（buildModel / add-species 等）
 │   │   ├── feasibility.ts        # 数值可行性校验（两阶段修复 loop）
 │   │   └── ecoTools.ts           # 模拟工具执行器
-│   ├── components/               # UI（ChartPanel / BuilderPanel / EcoTuner / AI 抽屉等）
+│   ├── components/               # UI（ChartPanel / BuilderPanel / EcoTuner / 智能体抽屉等）
 │   └── styles.css
 ├── server/                       # 共享后端（Hono，Node + CF Workers 双运行时）
 │   ├── app.ts                    # 共享 Hono app（/api/chat + 安全头 + 限流，运行时无关）
 │   ├── chat.ts                   # streamText 聊天处理器（env 注入式 + 步数配置化）
 │   ├── prompts.ts                # 模拟/构建模式系统提示词
-│   ├── tools.ts                  # 12 个 AI 工具 schema（执行在浏览器端）
+│   ├── tools.ts                  # 12 个智能体工具 schema（执行在浏览器端）
 │   ├── mode.ts                   # [MODE: build] 前缀判定与剥离（纯函数）
 │   ├── rateLimit.ts              # 每日请求限额（内存版）
 │   └── index.ts                  # Node 入口（dotenv + 静态 + SPA fallback + serve）
@@ -200,20 +218,20 @@ AI 助手基于 **Vercel AI SDK**（`ai` + `@ai-sdk/react`）实现：Node 服�
 
 ---
 
-## 🧪 测试
+## 测试
 
 ```bash
-npm run typecheck            # TypeScript 类型检查
-npm test                     # vitest 单元测试（computeStep / feasibility / builderTools）
+npm run typecheck            # TypeScript 类型检查（前端 + server + worker）
+npm test                     # vitest 单元/集成测试（104 项：生态核心/工具/协议/双语/前端链路）
 npm run verify:feasibility   # 数值可行性回归（鲸落/草兔狼/竞争耗竭/互利饱和等）
 ```
 
 ---
 
-## 📋 依赖
+## 依赖
 
-- [Chart.js](https://www.chartjs.org/) v4 – 动态折线图（CDN）
-- [marked](https://marked.js.org/) + [DOMPurify](https://github.com/cure53/DOMPurify) – AI 回复 markdown 渲染与净化（CDN）
+- [Chart.js](https://www.chartjs.org/) v4 – 动态折线图（本地 vendor）
+- [marked](https://marked.js.org/) + [DOMPurify](https://github.com/cure53/DOMPurify) – AI 回复 markdown 渲染与净化（本地 vendor）
 - [React](https://react.dev/) 19 + [Vite](https://vitejs.dev/) 6 – 前端框架与构建
 - [Vercel AI SDK](https://ai-sdk.dev/)（`ai` / `@ai-sdk/react` / `@ai-sdk/openai-compatible`）– AI 聊天（Node 服务端流式生成 + 客户端工具执行）
 - [Hono](https://hono.dev/) 4 – 跨运行时 Web 框架（Node + CF Workers 双部署共用同一 app）
@@ -222,6 +240,4 @@ npm run verify:feasibility   # 数值可行性回归（鲸落/草兔狼/竞争�
 
 ---
 
-项目基于普通高中教科书《生物学 选择性必修2 生物与环境》"种群数量波动"相关内容设计。
-
-**Enjoy exploring ecology!** 🌿🐇🐆
+项目基于普通高中教科书《生物学 选择性必修2 生物与环境》"种群数量波动"相关内容设计，面向高中生物学教学使用。
