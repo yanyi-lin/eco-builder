@@ -28,6 +28,8 @@ export const messages = {
     "chart.startSimulation": "▶️ 开始模拟",
     "chart.ecoTuner": "🎛️ Eco-Tuner",
     "chart.ecoTunerTitle": "Eco-Tuner（已禁用）",
+    "chart.axisTime": "模拟时间 (相对单位)",
+    "chart.tooltipUnit": "个体/面积",
 
     // === DisturbPanel 扰动 ===
     "disturb.title": "⚡ 生态扰动 (减少种群数量)",
@@ -154,6 +156,8 @@ export const messages = {
     "chart.startSimulation": "▶️ Start Simulation",
     "chart.ecoTuner": "🎛️ Eco-Tuner",
     "chart.ecoTunerTitle": "Eco-Tuner (disabled)",
+    "chart.axisTime": "Simulation time (relative units)",
+    "chart.tooltipUnit": "individuals/area",
 
     "disturb.title": "⚡ Ecological Disturbance (reduce population)",
     "disturb.note":

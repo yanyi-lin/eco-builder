@@ -6,6 +6,8 @@ import {
   type ChartDataset,
 } from "chart.js/auto";
 import type { EcoModelSpec } from "./types";
+import { displayName } from "./i18n";
+import { useI18n } from "../i18n/LanguageProvider";
 
 /** 图表渲染最小间隔（ms）：模拟步进 38ms，全量重绘（900 点 × N 数据集）较贵，
  *  每步都同步 update 会导致 rAF 任务堆积（Chrome "requestAnimationFrame handler
@@ -27,6 +29,7 @@ export interface UseEcoChart {
 }
 
 export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
+  const { lang, t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<Chart<"line"> | null>(null);
   // 持有最新 spec，供方法闭包读取，避免 spec 切换后引用旧值
@@ -44,7 +47,7 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
 
   const buildDatasets = (currentSpec: EcoModelSpec): ChartDataset<"line">[] => {
     return currentSpec.species.map((s) => ({
-      label: s.name,
+      label: displayName(s.name, s.name_en, lang),
       data: [],
       borderColor: s.color,
       borderWidth: 2.8,
@@ -117,7 +120,7 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
             intersect: false,
             callbacks: {
               label: (c) =>
-                `${c.dataset.label}: ${(c.raw as number).toFixed(1)} 个体/面积`,
+                `${c.dataset.label}: ${(c.raw as number).toFixed(1)} ${String(t("chart.tooltipUnit"))}`,
             },
           },
           legend: { display: false },
@@ -126,7 +129,7 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
           x: {
             title: {
               display: true,
-              text: "模拟时间 (相对单位)",
+              text: String(t("chart.axisTime")),
               color: "#3a6b3a",
               font: { weight: "bold" },
             },
@@ -137,7 +140,7 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
             position: "left",
             title: {
               display: true,
-              text: left.title,
+              text: displayName(left.title, left.title_en, lang),
               color: left.color,
               font: { weight: "bold" },
             },
@@ -151,7 +154,7 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
             position: "right",
             title: {
               display: true,
-              text: right.title,
+              text: displayName(right.title, right.title_en, lang),
               color: right.color,
               font: { weight: "bold" },
             },
@@ -248,6 +251,35 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
     ds.hidden = !ds.hidden;
     chart.update();
   };
+
+  // 语言切换：不重建 Chart 实例（重建会丢曲线可见性状态），直接 patch
+  // dataset label / 轴标题 / tooltip 闭包后 update("none")（BILINGUAL-PLAN L4）
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const currentSpec = specRef.current;
+    currentSpec.species.forEach((s, i) => {
+      const ds = chart.data.datasets[i];
+      if (ds) ds.label = displayName(s.name, s.name_en, lang);
+    });
+    const scales = chart.options.scales;
+    if (scales?.x?.title) scales.x.title.text = String(t("chart.axisTime"));
+    const left = currentSpec.axisRanges.left;
+    const right = currentSpec.axisRanges.right;
+    if (scales?.["y-plant"]?.title) {
+      scales["y-plant"].title.text = displayName(left.title, left.title_en, lang);
+    }
+    if (scales?.["y-prey"]?.title) {
+      scales["y-prey"].title.text = displayName(right.title, right.title_en, lang);
+    }
+    const tooltip = chart.options.plugins?.tooltip;
+    if (tooltip?.callbacks) {
+      tooltip.callbacks.label = (c) =>
+        `${c.dataset.label}: ${(c.raw as number).toFixed(1)} ${String(t("chart.tooltipUnit"))}`;
+    }
+    chart.update("none");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang, t]);
 
   // 单一 effect 管理图表生命周期。
   // 关键：cleanup 用 destroyChart（仅 chartRef），createChart 用 Chart.getChart(canvas)
