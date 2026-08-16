@@ -6,6 +6,8 @@
 export interface ParamMeta {
   /** 显示标签，如 "r (植物增长率)" */
   label: string;
+  /** 英文标签（可选，双语支持，BILINGUAL-PLAN L1） */
+  label_en?: string;
   /** 分组：dynamic（动力学参数）/ initial（初始值） */
   group: "dynamic" | "initial";
   min: number;
@@ -24,6 +26,8 @@ export interface AxisRange {
   step: number;
   /** 轴标题 */
   title: string;
+  /** 英文轴标题（可选，双语支持） */
+  title_en?: string;
   /** 刻度颜色 */
   color: string;
 }
@@ -34,6 +38,8 @@ export interface SpeciesDef {
   id: string;
   /** 显示名，如 "植物" */
   name: string;
+  /** 英文显示名（可选，双语支持） */
+  name_en?: string;
   /** 图标文件名（可选，与 index.html 同目录） */
   icon?: string;
   /** 曲线颜色 */
@@ -93,8 +99,12 @@ export interface EcoModelSpec {
   id: string;
   /** 显示名 */
   name: string;
+  /** 英文显示名（可选，双语支持；构建模式动态模型名无此字段，回退原文） */
+  name_en?: string;
   /** 简介（AI system prompt 与选择器 tooltip 用） */
   description: string;
+  /** 英文简介（可选，双语支持） */
+  description_en?: string;
   species: SpeciesDef[];
   relations: RelationDef[];
   /** 默认参数 */

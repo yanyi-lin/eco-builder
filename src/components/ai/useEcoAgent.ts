@@ -1,6 +1,7 @@
 import { useMemo, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
-import { isToolUIPart, type UIMessage } from "ai";
+import { DefaultChatTransport, isToolUIPart, type UIMessage } from "ai";
+import { useI18n } from "../../i18n/LanguageProvider";
 import type { UseEcoSimulation } from "../../eco/useEcoSimulation";
 import type { UseEcoBuilder } from "../../eco/useEcoBuilder";
 import { executeTool, type EcoApi } from "../../tools/ecoTools";
@@ -28,6 +29,12 @@ export function useEcoAgent(
   builder: UseEcoBuilder,
   mode: "simulate" | "build"
 ): UseEcoAgent {
+  // 界面语言：随请求发给服务端（prompt 语言跟随的兜底；useChat body 选项是死值且
+  // 续发轮次丢失，必须用 transport 级 body 函数——BILINGUAL-PLAN L3 审查 #1/#2）
+  const { lang } = useI18n();
+  const langRef = useRef(lang);
+  langRef.current = lang;
+
   const sessionId = useMemo(() => {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
       return crypto.randomUUID();
@@ -101,6 +108,10 @@ export function useEcoAgent(
 
   const chat = useChat({
     id: sessionId,
+    // 每次请求重求值 body（transport 级），语言切换动态生效
+    transport: new DefaultChatTransport({
+      body: () => ({ lang: langRef.current }),
+    }),
     // api 默认 /api/chat（ai@6 HttpChatTransport 默认值，与本项目 Node 服务端一致）
     // 节流 useSyncExternalStore 订阅通知（AI SDK 官方逃生通道）：
     // 连续工具调用的密集帧窗口内触发 React #185（嵌套更新超限），与 CF 版同款防护

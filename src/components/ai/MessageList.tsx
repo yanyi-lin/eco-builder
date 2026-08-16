@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { UIMessage } from "ai";
 import { getToolName, isToolUIPart } from "ai";
+import { useI18n } from "../../i18n/LanguageProvider";
 
 interface MessageListProps {
   messages: UIMessage[];
@@ -26,6 +27,7 @@ function renderMarkdown(text: string): string {
 }
 
 export function MessageList({ messages }: MessageListProps) {
+  const { t } = useI18n();
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -35,13 +37,13 @@ export function MessageList({ messages }: MessageListProps) {
   if (messages.length === 0) {
     return (
       <div className="ai-empty">
-        我是智能体助手。<br />
-        可以用自然语言让我：<br />
-        · 读取当前种群数量<br />
-        · 设置某物种数量<br />
-        · 启动 / 暂停 / 重置模拟<br />
-        · 切换到【构建模式】搭建全新的生态模型（如"构建森林生态系统"）<br /><br />
-        试试说：「读取当前种群，然后把某个物种的数量设为 30」
+        {t("chat.emptyIntro")}<br />
+        {t("chat.emptyGuide")}<br />
+        {t("chat.emptyRead")}<br />
+        {t("chat.emptySet")}<br />
+        {t("chat.emptyControl")}<br />
+        {t("chat.emptyBuild")}<br /><br />
+        {t("chat.emptyTry")}
       </div>
     );
   }

@@ -63,14 +63,15 @@ export function createApp(envSource?: Record<string, unknown>): Hono {
     }
 
     // 坏 JSON / 空 body 回落空对象，保持"缺 messages → 400"语义
-    const body = (await c.req.json().catch(() => ({}))) as { messages?: unknown };
+    const body = (await c.req.json().catch(() => ({}))) as { messages?: unknown; lang?: string };
+    const lang = body.lang === "en" ? "en" : "zh"; // 界面语言（仅 zh/en，其他值回退中文）
     if (!Array.isArray(body.messages)) {
       return c.json({ error: "请求体需包含 messages 数组（UIMessage[]）" }, 400);
     }
 
     try {
       // 直接返回标准 Response（UIMessageStream）——Hono 原生支持，无需手动 pump
-      return await handleChatRequest(body.messages, c.req.raw.signal, env);
+      return await handleChatRequest(body.messages, c.req.raw.signal, env, lang);
     } catch (err) {
       console.error("[api/chat] 处理失败:", err);
       return c.json({ error: "聊天服务内部错误" }, 500);

@@ -1,4 +1,6 @@
 import type { EcoModelSpec } from "../eco/types";
+import { displayName } from "../eco/i18n";
+import { useI18n } from "../i18n/LanguageProvider";
 
 interface CustomLegendProps {
   spec: EcoModelSpec;
@@ -8,16 +10,18 @@ interface CustomLegendProps {
 }
 
 export function CustomLegend({ spec, hiddenStates, onToggle }: CustomLegendProps) {
+  const { lang, t } = useI18n();
   const leftRange = spec.axisRanges.left;
   const rightRange = spec.axisRanges.right;
+  const nameOf = (s: (typeof spec.species)[number]) => displayName(s.name, s.name_en, lang);
   return (
     <div className="legend-section">
-      <div className="legend-title">📊 双Y轴说明 | 点击图例显示/隐藏曲线</div>
+      <div className="legend-title">{t("legend.title")}</div>
       {spec.species.map((s, i) => {
         const rangeText =
           s.axis === "left"
-            ? `左轴 ${leftRange.min}~${leftRange.max}`
-            : `右轴 ${rightRange.min}~${rightRange.max}`;
+            ? `${String(t("legend.leftAxis"))} ${leftRange.min}~${leftRange.max}`
+            : `${String(t("legend.rightAxis"))} ${rightRange.min}~${rightRange.max}`;
         return (
           <div
             key={s.id}
@@ -29,21 +33,21 @@ export function CustomLegend({ spec, hiddenStates, onToggle }: CustomLegendProps
               <img
                 className="legend-icon"
                 src={s.icon}
-                alt={`${s.name}图标`}
+                alt={`${nameOf(s)}${String(t("legend.iconAlt"))}`}
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).style.display = "none";
                 }}
               />
             )}
-            <span className="species-name">{s.name}</span>
+            <span className="species-name">{nameOf(s)}</span>
             <span className="scale-info">{rangeText}</span>
           </div>
         );
       })}
       <div className="note">
-        ※ {spec.species.filter((s) => s.axis === "left").map((s) => s.name).join("、") || "左侧"}物种在左轴，
-        {spec.species.filter((s) => s.axis === "right").map((s) => s.name).join("、") || "其他"}物种在右轴。
-        点击图例可隐藏/显示曲线，再次点击恢复。
+        ※ {spec.species.filter((s) => s.axis === "left").map((s) => nameOf(s)).join("、") || t("legend.leftFallback")}{t("legend.noteLeft")}
+        {spec.species.filter((s) => s.axis === "right").map((s) => nameOf(s)).join("、") || t("legend.otherFallback")}{t("legend.noteRight")}
+        {t("legend.noteToggle")}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useI18n } from "../i18n/LanguageProvider";
 
 interface InfoModalProps {
   open: boolean;
@@ -7,6 +8,7 @@ interface InfoModalProps {
 
 /** 项目信息弹窗（"i" 按钮）：介绍 + 制作者 + 鸣谢入口 */
 export function InfoModal({ open, onClose }: InfoModalProps) {
+  const { t } = useI18n();
   const [showCredits, setShowCredits] = useState(false);
 
   // 关闭主窗口时重置鸣谢子窗口状态，避免下次打开残留
@@ -25,39 +27,35 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
         }}
       >
         <div className="modal-content">
-          <div className="info-title">生态学演示器</div>
+          <div className="info-title">{t("info.title")}</div>
           <div className="info-desc">
             <p>
-              <strong>教材依据</strong>
+              <strong>{t("info.textbookTitle")}</strong>
               <br />
-              普通高中教科书 · 生物学选择性必修2
-              <br />
-              《生物与环境》
+              {t("info.textbookContent")}
             </p>
-            <p>智能体协助的生态系统构建工具</p>
+            <p>{t("info.purpose")}</p>
             <p>
-              <strong>智能体助手</strong>
+              <strong>{t("info.assistantTitle")}</strong>
               <br />
-              右侧抽屉支持自然语言控制模拟与构建模型：
-              <br />
-              读取/设置种群、启停/重置，或构建森林等任意生态模型
+              {t("info.assistantDesc")}
             </p>
           </div>
           <div className="info-authors">
-            <div className="authors-label">制作者</div>
+            <div className="authors-label">{t("info.authorsLabel")}</div>
             <div className="author-names">
-              <span>林炎逸</span>
+              <span>{t("info.authorsName")}</span>
             </div>
           </div>
           <div className="modal-footer">
             <button className="modal-btn secondary" onClick={onClose}>
-              关闭
+              {t("info.close")}
             </button>
             <button
               className="modal-btn primary"
               onClick={() => setShowCredits(true)}
             >
-              鸣谢
+              {t("info.credits")}
             </button>
           </div>
         </div>
@@ -69,6 +67,7 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
 
 /** 鸣谢弹窗：贡献者 + 开源/数据支持（嵌套在主窗口之上，z-index 更高） */
 function CreditsModal({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
   return (
     <div
       className="modal-overlay credits-overlay"
@@ -77,40 +76,40 @@ function CreditsModal({ onClose }: { onClose: () => void }) {
       }}
     >
       <div className="modal-content credits-content">
-        <div className="info-title">鸣谢</div>
+        <div className="info-title">{t("credits.title")}</div>
         <div className="credits-item">
-          <span className="credit-name">刘子木</span>
+          <span className="credit-name">{t("credits.liuzimuName")}</span>
           <br />
-          提供 AI 助手交互的想法
+          {t("credits.liuzimuDesc")}
         </div>
-        <div className="credits-section-title">开源与数据支持</div>
+        <div className="credits-section-title">{t("credits.opensourceTitle")}</div>
         <div className="credits-item">
-          <span className="credit-name">Vercel AI SDK</span> — AI 聊天与工具调用框架
-        </div>
-        <div className="credits-item">
-          <span className="credit-name">React</span> — 前端 UI 框架
+          {t("credits.vercelAi")}
         </div>
         <div className="credits-item">
-          <span className="credit-name">Vite</span> — 构建工具
+          {t("credits.react")}
         </div>
         <div className="credits-item">
-          <span className="credit-name">Chart.js</span> — 生态曲线图表
+          {t("credits.vite")}
         </div>
         <div className="credits-item">
-          <span className="credit-name">Express</span> — Node.js 后端框架
+          {t("credits.chartjs")}
         </div>
         <div className="credits-item">
-          <span className="credit-name">GBIF</span> — 物种分类数据
+          {t("credits.express")}
         </div>
         <div className="credits-item">
-          <span className="credit-name">GloBI</span> — 物种交互数据
+          {t("credits.gbif")}
+        </div>
+        <div className="credits-item">
+          {t("credits.globi")}
         </div>
         <div className="credits-note">
-          GBIF 与 GloBI 为开源生态数据平台，本工具的物种与交互查询依赖其数据。
+          {t("credits.note")}
         </div>
         <div className="modal-footer">
           <button className="modal-btn secondary" onClick={onClose}>
-            关闭
+            {t("credits.close")}
           </button>
         </div>
       </div>

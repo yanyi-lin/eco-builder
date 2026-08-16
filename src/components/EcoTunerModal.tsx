@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type { EcoModelSpec, EcoParams, ParamMeta } from "../eco/types";
+import { displayName } from "../eco/i18n";
+import { useI18n } from "../i18n/LanguageProvider";
 
 interface EcoTunerModalProps {
   spec: EcoModelSpec;
@@ -16,6 +18,7 @@ export function EcoTunerModal({
   onClose,
   onApply,
 }: EcoTunerModalProps) {
+  const { lang, t } = useI18n();
   const [temp, setTemp] = useState<EcoParams>({ ...currentParams });
 
   // 打开时同步当前参数
@@ -54,7 +57,7 @@ export function EcoTunerModal({
     return (
       <div key={key} className="param-row">
         <span className="param-label">
-          {meta.label} <small>{key}</small>
+          {displayName(meta.label, meta.label_en, lang)} <small>{key}</small>
         </span>
         <input
           type="range"
@@ -77,8 +80,8 @@ export function EcoTunerModal({
             updateParam(key, v);
           }}
         />
-        <button className="param-reset" onClick={() => resetParam(key)}>
-          ↺ 重置
+        <button className="param-reset" onClick={() => resetParam(key)} title={String(t("tuner.resetParam"))}>
+          {t("tuner.resetParam")}
         </button>
       </div>
     );
@@ -90,31 +93,31 @@ export function EcoTunerModal({
     }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h2>🎛️ Eco-Tuner - 模型参数自由调节</h2>
+          <h2>{t("tuner.header")}</h2>
           <button className="close-modal-x" onClick={onClose}>
             &times;
           </button>
         </div>
         <div className="modal-body">
           <div className="param-group">
-            <h3>📈 模型动力学参数</h3>
+            <h3>{t("tuner.groupDynamic")}</h3>
             {dynamicKeys.map((k) => renderRow(k, spec.paramMeta[k]))}
           </div>
           <div className="param-group">
-            <h3>🌱 初始种群数量</h3>
+            <h3>{t("tuner.groupInitial")}</h3>
             {initKeys.map((k) => renderRow(k, spec.paramMeta[k]))}
           </div>
         </div>
         <div className="modal-footer">
           <button className="modal-btn danger" onClick={resetAll}>
-            ⟳ 重置所有参数为默认
+            {t("tuner.resetAll")}
           </button>
           <div style={{ display: "flex", gap: 12 }}>
             <button className="modal-btn secondary" onClick={onClose}>
-              取消
+              {t("tuner.cancel")}
             </button>
             <button className="modal-btn primary" onClick={apply}>
-              ✓ 应用并重置模拟
+              {t("tuner.apply")}
             </button>
           </div>
         </div>

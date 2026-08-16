@@ -1,9 +1,25 @@
-// ========================= AI 系统提示词（原样迁移自 worker/EcoChatAgent.ts） =========================
-// 内容与 CF 版完全一致（MIGRATION-PLAN §4 行为等价基准：系统提示全文复用）。
-// 注意：与工具的 schema 声明解耦（tools.ts 独立定义），提示词只负责指导 LLM 行为。
+// ========================= AI 系统提示词 =========================
+// 内容与 CF 版一致（MIGRATION-PLAN §4 行为等价基准），L3 起语言指令可注入：
+// - 语言跟随：LLM 按用户输入语言回复（仅 zh/en），无法判断时用界面语言（BILINGUAL-PLAN L3）
+// - 工具转述：工具返回可能为中文，须用回复语言转述（单点覆盖全部工具输出）
+// 注意：保留"构建模式/模拟模式"关键词（chat-server.test.ts 断言依赖）。
+
+/** 回复语言（前端界面语言，仅 zh/en；server 不依赖前端 i18n 包） */
+export type ReplyLang = "zh" | "en";
+
+/** 语言跟随 + 工具转述规则（按界面语言选择措辞；prompt 主体保持中文，LLM 理解无碍） */
+function languageRule(lang: ReplyLang): string {
+  return lang === "zh"
+    ? "使用与用户输入相同的语言回复（仅中文/英文；含中文输入用中文，否则用英文；无法判断时用中文）。" +
+        "工具返回内容可能为中文，请用你的回复语言转述/翻译，不要原样引用中文原文。"
+    : "Reply in the same language as the user's input (Chinese or English; Chinese if the input contains Chinese, otherwise English; fall back to English when unsure). " +
+        "Tool outputs may be in Chinese; restate or translate them in your reply language instead of quoting the original Chinese text.";
+}
 
 /** 模拟模式系统提示：只能操作已有模型，不能构建新模型 */
-export const SYSTEM_PROMPT_SIMULATE = `你是生态模拟器的 AI 助手。用中文回答，简洁明了。
+export function SYSTEM_PROMPT_SIMULATE(lang: ReplyLang): string {
+  const rule = languageRule(lang);
+  return `你是生态模拟器的 AI 助手。${rule} 简洁明了。
 
 ## 身份与来源（当用户问起时，如实回答）
 - 如果用户问"你是谁"：回答"我是 **eco-builder**，一个帮助你构建和模拟生态系统的智能体"。
@@ -26,9 +42,12 @@ export const SYSTEM_PROMPT_SIMULATE = `你是生态模拟器的 AI 助手。用�
 - restart：重置模拟到初始状态
 
 操作后简述结果。`;
+}
 
 /** 构建模式系统提示：帮用户构建新的生态模型 */
-export const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中文回答，简洁明了。
+export function SYSTEM_PROMPT_BUILD(lang: ReplyLang): string {
+  const rule = languageRule(lang);
+  return `你是生态模拟器的 AI 助手。${rule} 简洁明了。
 
 ## 身份与来源（当用户问起时，如实回答）
 - 如果用户问"你是谁"：回答"我是 **eco-builder**，一个帮助你构建和模拟生态系统的智能体"。
@@ -116,3 +135,4 @@ export const SYSTEM_PROMPT_BUILD = `你是生态模拟器的 AI 助手。用中�
 如果 GBIF 返回 matchType=NONE，告诉用户需要提供拉丁学名。
 
 操作后简述结果。`;
+}

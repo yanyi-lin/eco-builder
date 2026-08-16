@@ -1,4 +1,6 @@
 import type { UseEcoBuilder } from "../eco/useEcoBuilder";
+import { displayName } from "../eco/i18n";
+import { useI18n } from "../i18n/LanguageProvider";
 
 interface BuilderPanelProps {
   builder: UseEcoBuilder;
@@ -10,29 +12,30 @@ interface BuilderPanelProps {
  */
 export function BuilderPanel({ builder }: BuilderPanelProps) {
   const { state, removeSpecies, removeRelation } = builder;
+  const { lang, t } = useI18n();
 
   return (
     <div className="builder-panel">
       <div className="builder-section">
-        <h3>物种 ({state.species.length})</h3>
+        <h3>{t("builder.species")} ({state.species.length})</h3>
         {state.species.length === 0 ? (
-          <p className="empty-hint">还没有物种。在右侧聊天中告诉 AI 你想模拟什么。</p>
+          <p className="empty-hint">{t("builder.emptySpecies")}</p>
         ) : (
           <div className="species-list">
             {state.species.map(sp => (
               <div key={sp.id} className="species-card" style={{ borderLeftColor: sp.color }}>
                 <div className="species-info">
-                  <strong>{sp.name}</strong>
+                  <strong>{displayName(sp.name, sp.name_en, lang)}</strong>
                   <span className="species-id">({sp.id})</span>
                 </div>
                 <div className="species-meta">
                   {sp.hasLogistic && <span className="tag">Logistic</span>}
-                  {sp.deathRate && <span className="tag">死亡率</span>}
+                  {sp.deathRate && <span className="tag">{t("builder.tagDeathRate")}</span>}
                 </div>
                 <button
                   className="remove-btn"
                   onClick={() => removeSpecies(sp.id)}
-                  title="移除"
+                  title={String(t("builder.remove"))}
                 >
                   x
                 </button>
@@ -43,19 +46,19 @@ export function BuilderPanel({ builder }: BuilderPanelProps) {
       </div>
 
       <div className="builder-section">
-        <h3>关系 ({state.relations.length})</h3>
+        <h3>{t("builder.relations")} ({state.relations.length})</h3>
         {state.relations.length === 0 ? (
-          <p className="empty-hint">还没有关系。让 AI 帮你定义物种间的关系。</p>
+          <p className="empty-hint">{t("builder.emptyRelations")}</p>
         ) : (
           <div className="relation-list">
             {state.relations.map((rel, i) => {
               let label = "";
               if (rel.type === "predation") {
-                label = `${rel.prey} -> ${rel.predator} (捕食)`;
+                label = `${rel.prey} -> ${rel.predator} (${String(t("builder.relationPredation"))})`;
               } else if (rel.type === "competition") {
-                label = `${rel.species1} <-> ${rel.species2} (竞争)`;
+                label = `${rel.species1} <-> ${rel.species2} (${String(t("builder.relationCompetition"))})`;
               } else if (rel.type === "mutualism") {
-                label = `${rel.species1} <-> ${rel.species2} (互利)`;
+                label = `${rel.species1} <-> ${rel.species2} (${String(t("builder.relationMutualism"))})`;
               }
               return (
                 <div key={i} className="relation-item">
@@ -63,7 +66,7 @@ export function BuilderPanel({ builder }: BuilderPanelProps) {
                   <button
                     className="remove-btn"
                     onClick={() => removeRelation(i)}
-                    title="移除"
+                    title={String(t("builder.remove"))}
                   >
                     x
                   </button>
@@ -75,7 +78,7 @@ export function BuilderPanel({ builder }: BuilderPanelProps) {
       </div>
 
       <div className="builder-section">
-        <h3>参数</h3>
+        <h3>{t("builder.params")}</h3>
         <div className="params-grid">
           {Object.entries(state.params).map(([key, value]) => (
             <div key={key} className="param-item">
