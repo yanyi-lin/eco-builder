@@ -11,6 +11,7 @@ import { BuilderPanel } from "./components/BuilderPanel";
 import { AgentChatDrawer } from "./components/ai/AgentChatDrawer";
 import { useEcoAgent } from "./components/ai/useEcoAgent";
 import { useI18n } from "./i18n/LanguageProvider";
+import { displayName } from "./eco/i18n";
 import type { EcoModelSpec } from "./eco/types";
 
 export function App() {
@@ -60,7 +61,9 @@ export function App() {
           <h1>
             {mode === "build"
               ? t("app.title.build")
-              : spec?.name || t("app.title.simulate")}
+              : spec
+                ? displayName(spec.name, spec.name_en, lang)
+                : t("app.title.simulate")}
           </h1>
           <div className="title-actions">
             {/* 语言切换按钮（中/EN），全模式可用 */}

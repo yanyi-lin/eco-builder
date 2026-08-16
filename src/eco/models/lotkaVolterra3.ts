@@ -18,13 +18,17 @@ import type { EcoModelSpec } from "../types";
 export const lotkaVolterra3: EcoModelSpec = {
   id: "lotkaVolterra3",
   name: "植物-雪兔-猞猁 (Lotka-Volterra)",
+  name_en: "Plant-Hare-Lynx (Lotka-Volterra)",
   description:
     "三营养级捕食系统：植物（资源）→ 雪兔（初级消费者）→ 猞猁（次级消费者），" +
     "呈现典型的时滞性周期振荡。基于高中生物学选择性必修2《生物与环境》。",
+  description_en:
+    "Three-trophic-level predation system: plants (resource) → snowshoe hares (primary consumer) → lynxes (secondary consumer), showing typical time-lagged periodic oscillations. Based on high school biology (Selective Compulsory 2).",
   species: [
     {
       id: "plant",
       name: "植物种群",
+      name_en: "Plant population",
       icon: "/dicot_plant_icon.png",
       color: "#2e7d32",
       axis: "left",
@@ -38,6 +42,7 @@ export const lotkaVolterra3: EcoModelSpec = {
     {
       id: "hare",
       name: "雪兔种群",
+      name_en: "Snowshoe hare population",
       icon: "/snow_hare_icon.png",
       color: "#1e88e5",
       axis: "right",
@@ -49,6 +54,7 @@ export const lotkaVolterra3: EcoModelSpec = {
     {
       id: "lynx",
       name: "猞猁种群",
+      name_en: "Lynx population",
       icon: "/lynx_icon.png",
       color: "#e53935",
       axis: "right",
@@ -89,18 +95,18 @@ export const lotkaVolterra3: EcoModelSpec = {
     Lynx0: 8.0,
   },
   paramMeta: {
-    r: { label: "r (植物增长率)", group: "dynamic", min: 0.05, max: 0.8, step: 0.005, digits: 3 },
-    K: { label: "K (植物容纳量)", group: "dynamic", min: 100, max: 500, step: 5, digits: 0 },
-    a: { label: "a (雪兔摄食率)", group: "dynamic", min: 0.002, max: 0.03, step: 0.0005, digits: 4 },
-    e: { label: "e (植物→雪兔转化)", group: "dynamic", min: 0.2, max: 1.0, step: 0.01, digits: 3 },
-    d: { label: "d (雪兔死亡率)", group: "dynamic", min: 0.1, max: 0.5, step: 0.005, digits: 3 },
-    b: { label: "b (猞猁捕食率)", group: "dynamic", min: 0.005, max: 0.04, step: 0.0005, digits: 4 },
-    f: { label: "f (雪兔→猞猁转化)", group: "dynamic", min: 0.2, max: 0.9, step: 0.01, digits: 3 },
-    m: { label: "m (猞猁死亡率)", group: "dynamic", min: 0.05, max: 0.3, step: 0.005, digits: 3 },
-    dt: { label: "dt (积分步长)", group: "dynamic", min: 0.01, max: 0.1, step: 0.001, digits: 3 },
-    Plant0: { label: "P₀ (植物初始)", group: "initial", min: 20, max: 250, step: 5, digits: 1, speciesId: "plant" },
-    Hare0: { label: "H₀ (雪兔初始)", group: "initial", min: 5, max: 80, step: 2, digits: 1, speciesId: "hare" },
-    Lynx0: { label: "L₀ (猞猁初始)", group: "initial", min: 1, max: 30, step: 1, digits: 1, speciesId: "lynx" },
+    r: { label: "r (植物增长率)", label_en: "r (Plant growth rate)", group: "dynamic", min: 0.05, max: 0.8, step: 0.005, digits: 3 },
+    K: { label: "K (植物容纳量)", label_en: "K (Plant carrying capacity)", group: "dynamic", min: 100, max: 500, step: 5, digits: 0 },
+    a: { label: "a (雪兔摄食率)", label_en: "a (Hare feeding rate)", group: "dynamic", min: 0.002, max: 0.03, step: 0.0005, digits: 4 },
+    e: { label: "e (植物→雪兔转化)", label_en: "e (Plant→Hare conversion)", group: "dynamic", min: 0.2, max: 1.0, step: 0.01, digits: 3 },
+    d: { label: "d (雪兔死亡率)", label_en: "d (Hare death rate)", group: "dynamic", min: 0.1, max: 0.5, step: 0.005, digits: 3 },
+    b: { label: "b (猞猁捕食率)", label_en: "b (Lynx predation rate)", group: "dynamic", min: 0.005, max: 0.04, step: 0.0005, digits: 4 },
+    f: { label: "f (雪兔→猞猁转化)", label_en: "f (Hare→Lynx conversion)", group: "dynamic", min: 0.2, max: 0.9, step: 0.01, digits: 3 },
+    m: { label: "m (猞猁死亡率)", label_en: "m (Lynx death rate)", group: "dynamic", min: 0.05, max: 0.3, step: 0.005, digits: 3 },
+    dt: { label: "dt (积分步长)", label_en: "dt (Integration step)", group: "dynamic", min: 0.01, max: 0.1, step: 0.001, digits: 3 },
+    Plant0: { label: "P₀ (植物初始)", label_en: "P₀ (Plant initial)", group: "initial", min: 20, max: 250, step: 5, digits: 1, speciesId: "plant" },
+    Hare0: { label: "H₀ (雪兔初始)", label_en: "H₀ (Hare initial)", group: "initial", min: 5, max: 80, step: 2, digits: 1, speciesId: "hare" },
+    Lynx0: { label: "L₀ (猞猁初始)", label_en: "L₀ (Lynx initial)", group: "initial", min: 1, max: 30, step: 1, digits: 1, speciesId: "lynx" },
   },
   dt: 0.045,
   axisRanges: {
@@ -109,6 +115,7 @@ export const lotkaVolterra3: EcoModelSpec = {
       max: 350,
       step: 50,
       title: "植物种群密度",
+      title_en: "Plant population density",
       color: "#2e7d32",
     },
     right: {
@@ -116,6 +123,7 @@ export const lotkaVolterra3: EcoModelSpec = {
       max: 100,
       step: 20,
       title: "雪兔 / 猞猁 种群密度",
+      title_en: "Hare / Lynx population density",
       color: "#1e88e5",
     },
   },

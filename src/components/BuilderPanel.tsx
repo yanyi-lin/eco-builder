@@ -1,4 +1,6 @@
 import type { UseEcoBuilder } from "../eco/useEcoBuilder";
+import { displayName } from "../eco/i18n";
+import { useI18n } from "../i18n/LanguageProvider";
 
 interface BuilderPanelProps {
   builder: UseEcoBuilder;
@@ -10,6 +12,7 @@ interface BuilderPanelProps {
  */
 export function BuilderPanel({ builder }: BuilderPanelProps) {
   const { state, removeSpecies, removeRelation } = builder;
+  const { lang } = useI18n();
 
   return (
     <div className="builder-panel">
@@ -22,7 +25,7 @@ export function BuilderPanel({ builder }: BuilderPanelProps) {
             {state.species.map(sp => (
               <div key={sp.id} className="species-card" style={{ borderLeftColor: sp.color }}>
                 <div className="species-info">
-                  <strong>{sp.name}</strong>
+                  <strong>{displayName(sp.name, sp.name_en, lang)}</strong>
                   <span className="species-id">({sp.id})</span>
                 </div>
                 <div className="species-meta">

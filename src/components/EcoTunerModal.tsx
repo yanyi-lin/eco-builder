@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type { EcoModelSpec, EcoParams, ParamMeta } from "../eco/types";
+import { displayName } from "../eco/i18n";
+import { useI18n } from "../i18n/LanguageProvider";
 
 interface EcoTunerModalProps {
   spec: EcoModelSpec;
@@ -16,6 +18,7 @@ export function EcoTunerModal({
   onClose,
   onApply,
 }: EcoTunerModalProps) {
+  const { lang } = useI18n();
   const [temp, setTemp] = useState<EcoParams>({ ...currentParams });
 
   // 打开时同步当前参数
@@ -54,7 +57,7 @@ export function EcoTunerModal({
     return (
       <div key={key} className="param-row">
         <span className="param-label">
-          {meta.label} <small>{key}</small>
+          {displayName(meta.label, meta.label_en, lang)} <small>{key}</small>
         </span>
         <input
           type="range"

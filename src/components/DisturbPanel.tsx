@@ -1,5 +1,7 @@
 import type { EcoModelSpec } from "../eco/types";
 import { DISTURB_PERCENTS } from "../eco/constants";
+import { displayName } from "../eco/i18n";
+import { useI18n } from "../i18n/LanguageProvider";
 
 interface DisturbPanelProps {
   spec: EcoModelSpec;
@@ -7,6 +9,7 @@ interface DisturbPanelProps {
 }
 
 export function DisturbPanel({ spec, onDisturb }: DisturbPanelProps) {
+  const { lang } = useI18n();
   return (
     <div className="disturb-section">
       <div className="disturb-title">⚡ 生态扰动 (减少种群数量)</div>
@@ -22,7 +25,7 @@ export function DisturbPanel({ spec, onDisturb }: DisturbPanelProps) {
                 borderRadius: 2,
               }}
             />
-            {s.name}
+            {displayName(s.name, s.name_en, lang)}
           </div>
           <div className="button-row">
             {DISTURB_PERCENTS.map((p) => (
