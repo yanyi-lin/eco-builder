@@ -67,8 +67,8 @@ npm run dev                 # 终端 2：前端 http://localhost:5173（/api 自
 2. **上传代码**：把项目上传到网站目录（默认 `/www/wwwroot/eco-builder`），或使用宝塔的 Git 拉取功能。
 3. **构建**：在项目目录执行 `npm install && npm run build`（或在面板终端执行）。
 4. **添加 Node 项目**：网站 → Node 项目 → 添加：项目目录选项目根，启动方式选 **自定义 ecosystem.config.cjs**，端口 **3000**，运行用户 **www**，Node 版本选刚装的 20/22。
-   - ⚠️ `ecosystem.config.cjs` 里的 `name` 必须与**面板中的项目名称完全一致**，否则面板显示"未启动"。
-   - ⚠️ 环境变量（`OPENAI_API_KEY` 等）写在 `ecosystem.config.cjs` 的 `env` 段（或面板"环境变量"栏）；**不要用 `env_production`**（宝塔执行 pm2 时不注入）。
+   - **注意**：`ecosystem.config.cjs` 里的 `name` 必须与**面板中的项目名称完全一致**，否则面板显示"未启动"。
+   - **注意**：环境变量（`OPENAI_API_KEY` 等）写在 `ecosystem.config.cjs` 的 `env` 段（或面板"环境变量"栏）；**不要用 `env_production`**（宝塔执行 pm2 时不注入）。
 5. **反向代理**：网站 → 添加站点（填域名）→ 设置 → 反向代理 → 目标 URL 填 `http://127.0.0.1:3000`。
 6. **防火墙**：安全组/防火墙只需放行 **80/443**（3000 保持内网，勿暴露）。
 7. **开机自启**（重要）：宝塔 → 计划任务 → Shell 脚本 → 执行周期选「开机时」，内容：
