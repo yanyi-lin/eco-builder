@@ -10,9 +10,11 @@ import { EcoTunerModal } from "./components/EcoTunerModal";
 import { BuilderPanel } from "./components/BuilderPanel";
 import { AgentChatDrawer } from "./components/ai/AgentChatDrawer";
 import { useEcoAgent } from "./components/ai/useEcoAgent";
+import { useI18n } from "./i18n/LanguageProvider";
 import type { EcoModelSpec } from "./eco/types";
 
 export function App() {
+  const { lang, setLang, t } = useI18n();
   const [mode, setMode] = useState<"simulate" | "build">("simulate");
   const [modelId, setModelId] = useState(DEFAULT_MODEL_ID);
   const [customSpec, setCustomSpec] = useState<EcoModelSpec | null>(null);
@@ -57,10 +59,18 @@ export function App() {
         <div className="title-row">
           <h1>
             {mode === "build"
-              ? "生态模型构建器"
-              : spec?.name || "生态模型模拟"}
+              ? t("app.title.build")
+              : spec?.name || t("app.title.simulate")}
           </h1>
           <div className="title-actions">
+            {/* 语言切换按钮（中/EN），全模式可用 */}
+            <button
+              className="lang-btn"
+              onClick={() => setLang(lang === "zh" ? "en" : "zh")}
+              aria-label="Switch language"
+            >
+              {t("lang.toggle")}
+            </button>
             {mode === "simulate" ? (
               <>
                 <ModelSelector value={modelId} onChange={handleModelChange} disabled />
