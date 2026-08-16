@@ -26,7 +26,8 @@ jobs:
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
-          git config --global credential.helper '!f() { echo "username=x-oauth-basic"; echo "password=${GITEE_TOKEN}"; }; f'
+          # Gitee HTTP Basic 认证：username=Gitee 用户名，password=私人令牌
+          git config --global credential.helper '!f() { echo "username=lin_Yanyi"; echo "password=${GITEE_TOKEN}"; }; f'
           git remote add gitee https://gitee.com/lin_Yanyi/eco-builder.git
           git push --force gitee "refs/heads/main:refs/heads/main"
           git push --force gitee --tags
