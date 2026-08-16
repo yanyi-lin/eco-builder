@@ -1,10 +1,13 @@
 # ========================= GitHub → Gitee 镜像同步 =========================
-# 单向只读镜像：push 到 main 时自动把完整历史同步到 Gitee（国内 clone/部署用）。
-# - Gitee 仓库：https://gitee.com/lin_Yanyi/eco-builder（公开，空仓库起步）
+# 单向只读镜像（浅镜像方案）：push 到 main 时自动把**最近 20 个提交**同步到 Gitee
+# （国内 clone/部署用）。
+# - Gitee 仓库：https://gitee.com/lin_Yanyi/eco-builder（公开）
+# - 为什么浅镜像：Gitee GE007 钩子拒绝含 GitHub 隐藏邮箱的提交；最近 20 个提交
+#   全部为 yanyi_lin 的公开邮箱提交（noreply 均在远古历史），浅同步天然绕过钩子，
+#   无需重写历史。代价：Gitee 镜像不含最早历史（教学部署场景可接受）。
 # - 凭据：GITEE_TOKEN（GitHub Actions Secret，Gitee 私人令牌，仅 projects 权限）
 # - 安全：token 通过 credential helper 注入，不进入 URL 与日志
-# - 同步范围：main 分支 + 全部 tag；--force 保证镜像与 GitHub 完全一致
-# - 注意：若 Gitee 端默认分支仍是空的 master，可在 Gitee 设置里把默认分支改为 main
+# - 默认分支：push 后通过 API 把 Gitee 默认分支设为 main（新仓库默认空 master 会导致 clone 拉空）
 
 name: Sync to Gitee
 
@@ -17,27 +20,10 @@ jobs:
     name: Mirror main to Gitee
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (full history)
+      - name: Checkout (recent history, shallow mirror)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      # Gitee GE007 钩子拒绝推送含 GitHub 隐藏邮箱（@users.noreply.github.com）的提交。
-      # 只读镜像方案：同步时把 noreply 邮箱重写为该贡献者的真实公开邮箱
-      # （liusonwood@outlook.com，git 历史有证据），不影响 GitHub 主仓。
-      # 注意：显式重写 refs/heads/main（--all 在 detached HEAD 场景下可能漏掉本地分支），
-      # 且重写后立即验证——若仍有 noreply 残留则步骤失败，避免 GE007 模糊报错浪费轮次。
-      - name: Rewrite hidden emails (Gitee GE007 hook)
-        run: |
-          git filter-branch --force --env-filter '
-            old="103164286+liusonwood@users.noreply.github.com"
-            new="liusonwood@outlook.com"
-            if [ "$GIT_AUTHOR_EMAIL" = "$old" ]; then export GIT_AUTHOR_EMAIL="$new"; fi
-            if [ "$GIT_COMMITTER_EMAIL" = "$old" ]; then export GIT_COMMITTER_EMAIL="$new"; fi
-          ' -- main
-          LEFT=$(git log --format="%ae" main | grep -c "noreply.github.com" || true)
-          echo "重写后 noreply 残留: $LEFT"
-          if [ "${LEFT:-0}" != "0" ]; then echo "filter-branch 未生效"; exit 1; fi
+          fetch-depth: 20
 
       - name: Push to Gitee
         env:
@@ -50,4 +36,8 @@ jobs:
           git config --global http.lowSpeedTime 90
           git remote add gitee https://gitee.com/lin_Yanyi/eco-builder.git
           git push --force gitee "refs/heads/main:refs/heads/main"
-          git push --force gitee --tags
+          # 把 Gitee 默认分支设为 main（否则新仓库默认空 master，clone 会拉空）
+          curl -s -X PATCH "https://gitee.com/api/v5/repos/lin_Yanyi/eco-builder" \
+            -H "Content-Type: application/json" \
+            -d "{\"access_token\":\"${GITEE_TOKEN}\",\"default_branch\":\"main\"}" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print('Gitee 默认分支:', d.get('default_branch'))" 2>/dev/null || true
