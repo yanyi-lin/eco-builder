@@ -1,8 +1,8 @@
 {
-  "name": "plant-hare-lynx-ecosystem-simulator",
+  "name": "eco-builder",
   "version": "1.0.0",
   "private": true,
-  "description": "基于 Lotka-Volterra 三营养级模型的交互式生态学教学演示，含 AI Agent 助手",
+  "description": "智能体协助的生态系统构建工具（基于 Lotka-Volterra 模型，高中生物学教学）",
   "type": "module",
   "engines": {
     "node": ">=20"
