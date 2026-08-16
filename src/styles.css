@@ -386,23 +386,27 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
 }
 .info-desc a { color: #2c5e3a; font-weight: 600; }
 
-/* GitHub 章鱼猫按钮（信息弹窗内，跳转仓库，无文字说明） */
-.github-btn-wrap { text-align: center; margin: 0.4rem 0 0.6rem; }
-.github-btn {
+/* GitHub 章鱼猫链接（"i" 按钮旁）：半透明低调，hover 才变清晰 */
+.github-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: #fff;
-  border: 2px solid #d0d7de;
-  color: #24292f;
+  background: rgba(232, 240, 229, 0.5);
+  color: rgba(44, 94, 58, 0.55);
+  opacity: 0.8;
   cursor: pointer;
   transition: 0.15s;
+  flex-shrink: 0;
 }
-.github-btn:hover { background: #f6f8fa; transform: scale(1.06); }
-.github-btn svg { width: 26px; height: 26px; fill: currentColor; }
+.github-link:hover {
+  opacity: 1;
+  background: rgba(232, 240, 229, 0.9);
+  color: #2c5e3a;
+}
+.github-link svg { width: 18px; height: 18px; fill: currentColor; }
 
 /* Eco-Tuner 模态框 */
 #ecoTunerModal .modal-content {
