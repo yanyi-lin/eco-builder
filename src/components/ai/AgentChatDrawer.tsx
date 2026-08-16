@@ -24,15 +24,15 @@ export function AgentChatDrawer({
       <button
         className="ai-drawer-toggle"
         onClick={onToggle}
-        title={collapsed ? "展开 AI 助手" : "收起 AI 助手"}
+        title={collapsed ? "展开智能体助手" : "收起智能体助手"}
       >
-        {collapsed ? "🤖 AI" : "🤖 AI 助手"}
+        {collapsed ? "智能体" : "智能体助手"}
       </button>
 
       {!collapsed && (
         <>
           <div className="ai-drawer-header">
-            <span className="ai-drawer-title">生态 AI 助手</span>
+            <span className="ai-drawer-title">智能体助手</span>
             <span className={`ai-drawer-status${agent.isStreaming ? " streaming" : ""}`}>
               {statusText}
             </span>
