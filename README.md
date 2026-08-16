@@ -70,6 +70,26 @@ docker run -d --name eco-builder -p 3000:3000 \
 # 再用宝塔/nginx 反代 127.0.0.1:3000（或宝塔 9.3.0+ 的"容器反向代理"）
 ```
 
+### 方式四：Cloudflare Workers（同一套代码，自定义域名）
+
+> 架构：共享 Hono app（`server/app.ts`）双运行时——Node 入口跑宝塔/Docker，Worker 入口（`worker/index.ts`）跑 CF Workers。静态资源由 CF 原生 Static Assets 服务，Worker 只处理 `/api/*`。
+
+```bash
+npm install
+npm run build                    # 产出 dist/（assets）与 dist-server/
+cp .dev.vars.example .dev.vars   # 本地开发填 OPENAI_API_KEY（已 gitignore）
+npx wrangler dev                 # 本地冒烟 http://localhost:8787
+
+# 生产部署
+npx wrangler secret put OPENAI_API_KEY   # 或面板 Settings → Variables and Secrets
+npx wrangler deploy                       # 绑定自定义域名后在 CF 面板配置路由
+```
+
+- 环境变量：`OPENAI_BASE_URL` / `OPENAI_MODEL` / `BUILD_MAX_STEPS` 在 `wrangler.jsonc` 的 `vars`（明文）；`OPENAI_API_KEY` 必须用 **Secret**（加密，`secrets.required` 会在 deploy 时强校验）。
+- **步数上限**：CF 免费档单请求 50 子请求，`BUILD_MAX_STEPS` 默认 60（宝塔不受限）；CF 部署在 `wrangler.jsonc` vars 已设 **40**，避免撞墙。宝塔端不设置即用默认 60。
+- **限流说明**：每日 20k 请求上限为进程内存计数。CF Workers 多 isolate 环境下为 **per-isolate 近似值**（非全局精确），教学场景可接受；需要精确全局计数需引入 Durable Object（会引入 CF 依赖，默认不做）。
+- 国内访问：workers.dev 域名国内基本不可达，请绑定**自定义域名**（CF 托管或 CNAME）。
+
 ---
 
 ## 🔧 环境变量
@@ -79,10 +99,13 @@ docker run -d --name eco-builder -p 3000:3000 \
 | `OPENAI_BASE_URL` | OpenAI 兼容 API base URL（`/chat/completions` 自动拼接） | `https://api.deepseek.com` |
 | `OPENAI_MODEL` | 模型名 | `deepseek-v4-flash` |
 | `OPENAI_API_KEY` | API Key（secret，不提交仓库） | `sk-...` |
-| `PORT` | 服务监听端口（默认 3000） | `3000` |
+| `PORT` | Node 服务监听端口（默认 3000；CF 部署无需） | `3000` |
+| `BUILD_MAX_STEPS` | 构建模式单轮步数上限（默认 60；CF 建议 40） | `40` |
+| `SIMULATE_MAX_STEPS` | 模拟模式单轮步数上限（默认 20） | `20` |
 
 - 本地开发：复制 `.env.example` 为 `.env` 填写（`.env` 已被 gitignore）。
 - 宝塔部署：写在 `ecosystem.config.cjs` 的 `env` 段（或面板"环境变量"栏）。
+- CF 部署：vars（明文）+ secrets（`OPENAI_API_KEY`），本地用 `.dev.vars`。
 - 兼容任意 OpenAI Chat Completions 兼容端点（DeepSeek / 官方 OpenAI / 第三方网关 / Ollama），由 `@ai-sdk/openai-compatible` 驱动。
 
 ---
@@ -159,14 +182,18 @@ AI 助手基于 **Vercel AI SDK**（`ai` + `@ai-sdk/react`）实现：Node 服�
 │   │   └── ecoTools.ts           # 模拟工具执行器
 │   ├── components/               # UI（ChartPanel / BuilderPanel / EcoTuner / AI 抽屉等）
 │   └── styles.css
-├── server/                       # Node.js 后端（AI 聊天 + 静态服务，脱离 Cloudflare）
-│   ├── index.ts                  # Express 入口（/api/chat + 静态 + SPA fallback + 安全头 + 限流）
-│   ├── chat.ts                   # streamText 聊天处理器（系统提示/工具集/步数上限）
+├── server/                       # 共享后端（Hono，Node + CF Workers 双运行时）
+│   ├── app.ts                    # 共享 Hono app（/api/chat + 安全头 + 限流，运行时无关）
+│   ├── chat.ts                   # streamText 聊天处理器（env 注入式 + 步数配置化）
 │   ├── prompts.ts                # 模拟/构建模式系统提示词
 │   ├── tools.ts                  # 12 个 AI 工具 schema（执行在浏览器端）
 │   ├── mode.ts                   # [MODE: build] 前缀判定与剥离（纯函数）
-│   └── rateLimit.ts              # 每日请求限额（内存版）
+│   ├── rateLimit.ts              # 每日请求限额（内存版）
+│   └── index.ts                  # Node 入口（dotenv + 静态 + SPA fallback + serve）
+├── worker/
+│   └── index.ts                  # CF Workers 入口（export default fetch，零 node 内置模块）
 ├── ecosystem.config.cjs          # 宝塔面板 PM2 部署配置
+├── wrangler.jsonc                # Cloudflare Workers 部署配置（assets + vars + secrets）
 ├── scripts/verify-feasibility.ts # 数值可行性回归测试
 └── data/raw/                     # 生态数据预取缓存
 ```
@@ -189,7 +216,8 @@ npm run verify:feasibility   # 数值可行性回归（鲸落/草兔狼/竞争�
 - [marked](https://marked.js.org/) + [DOMPurify](https://github.com/cure53/DOMPurify) – AI 回复 markdown 渲染与净化（CDN）
 - [React](https://react.dev/) 19 + [Vite](https://vitejs.dev/) 6 – 前端框架与构建
 - [Vercel AI SDK](https://ai-sdk.dev/)（`ai` / `@ai-sdk/react` / `@ai-sdk/openai-compatible`）– AI 聊天（Node 服务端流式生成 + 客户端工具执行）
-- [Express](https://expressjs.com/) 5 – Node 后端（静态资源 + API + SPA fallback）
+- [Hono](https://hono.dev/) 4 – 跨运行时 Web 框架（Node + CF Workers 双部署共用同一 app）
+- [@hono/node-server](https://www.npmjs.com/package/@hono/node-server) – Node 端 Hono 适配（宝塔/pm2）
 - [zod](https://zod.dev/) – 工具输入 schema 校验
 
 ---

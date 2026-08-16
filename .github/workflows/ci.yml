@@ -33,3 +33,8 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # CF Workers 打包校验（Hono 双运行时）：验证 worker/index.ts 可被 wrangler 打包、
+      # assets 目录存在、vars/secrets 配置合法（--dry-run 不实际部署，无需 CF 凭据）
+      - name: Cloudflare Workers bundle check
+        run: npx wrangler deploy --dry-run
