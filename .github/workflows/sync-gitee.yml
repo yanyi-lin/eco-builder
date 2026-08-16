@@ -28,6 +28,9 @@ jobs:
         run: |
           # Gitee HTTP Basic 认证：username=Gitee 用户名，password=私人令牌
           git config --global credential.helper '!f() { echo "username=lin_Yanyi"; echo "password=${GITEE_TOKEN}"; }; f'
+          # 低速超时：Gitee 对海外 runner 响应慢，避免 git 无限挂起
+          git config --global http.lowSpeedLimit 1000
+          git config --global http.lowSpeedTime 90
           git remote add gitee https://gitee.com/lin_Yanyi/eco-builder.git
           git push --force gitee "refs/heads/main:refs/heads/main"
           git push --force gitee --tags
