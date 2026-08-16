@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach, beforeEach } from "vitest";
-import { createApp } from "../server/index";
-import { handleChatRequest } from "../server/chat";
+import { createApp } from "../server/app";
+import { handleChatRequest, loadChatEnv, type ChatEnv } from "../server/chat";
 import { __resetForTests, __setNowForTests, DAILY_REQUEST_LIMIT } from "../server/rateLimit";
-import type { Express } from "express";
+import { createAdaptorServer } from "@hono/node-server";
+import type { Hono } from "hono";
 import type { Server } from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -103,23 +104,32 @@ beforeAll(() => {
   process.env.OPENAI_BASE_URL = "http://mock.local";
   process.env.OPENAI_API_KEY = "mock-key";
   process.env.OPENAI_MODEL = "mock-model";
+  TEST_ENV = loadChatEnv(process.env);
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** 测试环境配置（beforeAll 从 process.env 装载；handleChatRequest 现为 env 注入式） */
+let TEST_ENV: ChatEnv;
+
+/** 协议层测试包装：固定 env 与无中止信号 */
+function chat(messages: Parameters<typeof handleChatRequest>[0]): Promise<Response> {
+  return handleChatRequest(messages, undefined, TEST_ENV);
+}
+
 describe("handleChatRequest 协议", () => {
   it("连续多轮工具调用（构建模式场景）：工具→工具→文本", async () => {
     // 轮1：LLM 返回 add-species 工具调用
     mockLLM(toolChunks("add-species"));
-    const r1 = await handleChatRequest([userMsg("[MODE: build] 构建森林生态系统")]);
+    const r1 = await chat([userMsg("[MODE: build] 构建森林生态系统")]);
     const e1 = await collectUIStream(r1);
     expect(e1.some((e) => e.type === "tool-input-start" && e.toolName === "add-species")).toBe(true);
 
     // 轮2：带 add-species 结果，LLM 返回 add-relation
     const getBody2 = mockLLM(toolChunks("add-relation"));
-    const r2 = await handleChatRequest([
+    const r2 = await chat([
       userMsg("[MODE: build] 构建森林生态系统"),
       assistantToolMsg("call_1", "add-species", { id: "tree", name: "树" }),
     ]);
@@ -131,7 +141,7 @@ describe("handleChatRequest 协议", () => {
 
     // 轮3：带两条工具结果，LLM 返回纯文本
     mockLLM(textChunks("模型已构建完成"));
-    const r3 = await handleChatRequest([
+    const r3 = await chat([
       userMsg("[MODE: build] 构建森林生态系统"),
       assistantToolMsg("call_1", "add-species", { id: "tree", name: "树" }),
       assistantToolMsg("call_2", "add-relation", { type: "predation", prey: "leaf", predator: "deer" }),
@@ -142,7 +152,7 @@ describe("handleChatRequest 协议", () => {
 
   it("纯文本回复：输出 text-delta 流并以 stop 结束", async () => {
     mockLLM(textChunks("你好，这是测试回复。"));
-    const res = await handleChatRequest([userMsg("你好")]);
+    const res = await chat([userMsg("你好")]);
     expect(res.status).toBe(200);
     const events = await collectUIStream(res);
     expect(events[0]).toMatchObject({ type: "start" });
@@ -152,7 +162,7 @@ describe("handleChatRequest 协议", () => {
 
   it("工具调用：输出 tool-input 流并以 tool-calls 结束", async () => {
     mockLLM(toolChunks("read-animal-data"));
-    const res = await handleChatRequest([userMsg("读取当前种群")]);
+    const res = await chat([userMsg("读取当前种群")]);
     const events = await collectUIStream(res);
     expect(events.some((e) => e.type === "tool-input-start" && e.toolName === "read-animal-data")).toBe(true);
     expect(events.at(-1)).toMatchObject({ type: "finish", finishReason: "tool-calls" });
@@ -160,7 +170,7 @@ describe("handleChatRequest 协议", () => {
 
   it("带工具结果输入：convertToModelMessages 转成 tool 消息发给 LLM", async () => {
     const getBody = mockLLM(textChunks("好的"));
-    const res = await handleChatRequest([
+    const res = await chat([
       userMsg("读取当前种群"),
       {
         id: "m2",
@@ -185,7 +195,7 @@ describe("handleChatRequest 协议", () => {
 
   it("残缺工具 part（input-available 无输出）被忽略，不触发 MissingToolResultsError", async () => {
     const getBody = mockLLM(textChunks("好的"));
-    const res = await handleChatRequest([
+    const res = await chat([
       userMsg("读取当前种群"),
       {
         id: "m2",
@@ -209,7 +219,7 @@ describe("handleChatRequest 协议", () => {
 
   it("构建模式：[MODE: build] 前缀被剥离，且使用构建模式系统提示", async () => {
     const getBody = mockLLM(textChunks("好的"));
-    const res = await handleChatRequest([userMsg("[MODE: build] 构建森林生态系统")]);
+    const res = await chat([userMsg("[MODE: build] 构建森林生态系统")]);
     // 消费流以触发 LLM fetch（toUIMessageStreamResponse 是 lazy 流）
     await collectUIStream(res);
     const body = getBody() as { messages: { role: string; content?: string }[] };
@@ -223,7 +233,7 @@ describe("handleChatRequest 协议", () => {
 
   it("模拟模式使用模拟模式系统提示", async () => {
     const getBody = mockLLM(textChunks("好的"));
-    const res = await handleChatRequest([userMsg("读取当前种群")]);
+    const res = await chat([userMsg("读取当前种群")]);
     // 消费流以触发 LLM fetch（toUIMessageStreamResponse 是 lazy 流）
     await collectUIStream(res);
     const body = getBody() as { messages: { role: string; content?: string }[] };
@@ -236,7 +246,7 @@ describe("handleChatRequest 协议", () => {
 // ============================================================
 
 describe("createApp HTTP 层", () => {
-  let app: Express;
+  let app: Hono;
   let server: Server;
   let base: string;
 
@@ -248,9 +258,14 @@ describe("createApp HTTP 层", () => {
       "<!DOCTYPE html><html><body>eco-builder-test</body></html>",
     );
 
-    app = createApp();
+    // 动态加载 Node 入口（静态资源与 SPA fallback 在入口注册；须在 dist/index.html
+    // 写入之后加载，且 beforeAll 已设置 process.env 满足入口 fail-fast 校验）
+    const entry = await import("../server/index");
+    app = entry.app;
+    // Hono 无 listen：用 @hono/node-server 的 createAdaptorServer 得到真实 node Server
+    server = createAdaptorServer({ fetch: app.fetch });
     await new Promise<void>((resolve) => {
-      server = app.listen(0, () => resolve());
+      server.listen(0, () => resolve());
     });
     const addr = server.address();
     base = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
