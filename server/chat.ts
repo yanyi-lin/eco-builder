@@ -19,7 +19,7 @@ import {
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { detectBuildMode, stripModePrefix } from "./mode.js";
 import { buildTools } from "./tools.js";
-import { SYSTEM_PROMPT_BUILD, SYSTEM_PROMPT_SIMULATE } from "./prompts.js";
+import { SYSTEM_PROMPT_BUILD, SYSTEM_PROMPT_SIMULATE, type ReplyLang } from "./prompts.js";
 
 /** 服务端运行配置（部署时由 .env / ecosystem env / CF vars+secrets 注入） */
 export interface ChatEnv {
@@ -65,18 +65,20 @@ export function loadChatEnv(source: Record<string, unknown> = {}): ChatEnv {
  * @param messages 前端传来的全量 UIMessage[]（含历史与 tool part）
  * @param signal 客户端中止信号（useChat stop() → fetch abort）
  * @param env 运行配置（loadChatEnv 的结果）
+ * @param lang 界面语言（"zh" | "en"，默认 "zh"）；用于 prompt 语言跟随的兜底
  * @returns UIMessageStream 响应（web 标准 Response）
  */
 export async function handleChatRequest(
   messages: UIMessage[],
   signal: AbortSignal | undefined,
   env: ChatEnv,
+  lang: ReplyLang = "zh",
 ): Promise<Response> {
   // 模式判定 + 剥离传输前缀（每请求独立判定，纯函数复用）
   const isBuildMode = detectBuildMode(messages);
   const cleanMessages = stripModePrefix(messages);
 
-  const systemPrompt = isBuildMode ? SYSTEM_PROMPT_BUILD : SYSTEM_PROMPT_SIMULATE;
+  const systemPrompt = isBuildMode ? SYSTEM_PROMPT_BUILD(lang) : SYSTEM_PROMPT_SIMULATE(lang);
 
   // openai-compatible provider：默认走 Chat Completions API（/chat/completions），
   // 兼容 DeepSeek / 官方 OpenAI / 第三方网关 / Ollama（Node 与 workerd 均可运行）

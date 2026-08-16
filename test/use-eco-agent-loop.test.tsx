@@ -106,7 +106,9 @@ describe("useEcoAgent 续发链路（构建模式）", () => {
 
   it("工具调用 → 纯文本收尾后停止（不无限续发）", async () => {
     const fetchMock = vi.fn(async (_url: string | URL, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { messages: unknown[] };
+      const body = JSON.parse(String(init?.body)) as { messages: unknown[]; lang?: string };
+      // transport body 函数应始终携带界面语言（无 Provider 默认 zh）
+      expect(body.lang).toBe("zh");
       const last = body.messages[body.messages.length - 1] as
         | { role?: string; parts?: { state?: string }[] }
         | undefined;

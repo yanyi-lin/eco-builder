@@ -231,6 +231,24 @@ describe("handleChatRequest 协议", () => {
     expect(String(user?.content)).not.toContain("[MODE: build]");
   });
 
+  it("lang=en 时 prompt 注入英文语言指令（LLM 语言跟随）", async () => {
+    const getBody = mockLLM(textChunks("好的"));
+    const res = await handleChatRequest([userMsg("读取当前种群")], undefined, TEST_ENV, "en");
+    await collectUIStream(res);
+    const body = getBody() as { messages: { role: string; content?: string }[] };
+    expect(String(body.messages[0].content)).toContain("Reply in the same language");
+    // 保留模拟模式关键词（防回归）
+    expect(String(body.messages[0].content)).toContain("模拟模式");
+  });
+
+  it("默认 lang（zh）时 prompt 含中文语言指令", async () => {
+    const getBody = mockLLM(textChunks("好的"));
+    const res = await handleChatRequest([userMsg("读取当前种群")], undefined, TEST_ENV);
+    await collectUIStream(res);
+    const body = getBody() as { messages: { role: string; content?: string }[] };
+    expect(String(body.messages[0].content)).toContain("使用与用户输入相同的语言");
+  });
+
   it("模拟模式使用模拟模式系统提示", async () => {
     const getBody = mockLLM(textChunks("好的"));
     const res = await chat([userMsg("读取当前种群")]);
