@@ -34,11 +34,7 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
               <br />
               《生物与环境》
             </p>
-            <p>
-              <strong>项目定位</strong>
-              <br />
-              智能体协助的生态系统构建工具
-            </p>
+            <p>智能体协助的生态系统构建工具</p>
             <p>
               <strong>AI 助手</strong>
               <br />
