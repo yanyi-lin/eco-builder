@@ -36,9 +36,9 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
             </p>
             <p>智能体协助的生态系统构建工具</p>
             <p>
-              <strong>AI 助手</strong>
+              <strong>智能体助手</strong>
               <br />
-              右侧 AI 抽屉支持自然语言控制模拟与构建模型：
+              右侧抽屉支持自然语言控制模拟与构建模型：
               <br />
               读取/设置种群、启停/重置，或构建森林等任意生态模型
             </p>

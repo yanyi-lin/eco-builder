@@ -35,7 +35,7 @@ export function MessageList({ messages }: MessageListProps) {
   if (messages.length === 0) {
     return (
       <div className="ai-empty">
-        🤖 我是生态模拟器 AI 助手。<br />
+        我是智能体助手。<br />
         可以用自然语言让我：<br />
         · 读取当前种群数量<br />
         · 设置某物种数量<br />
