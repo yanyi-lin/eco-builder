@@ -1,4 +1,5 @@
 import { MODELS, DEFAULT_MODEL_ID } from "../eco/models";
+import { useI18n } from "../i18n/LanguageProvider";
 
 interface ModelSelectorProps {
   value: string;
@@ -8,14 +9,15 @@ interface ModelSelectorProps {
 }
 
 export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps) {
+  const { t } = useI18n();
   const hasMultiple = Object.keys(MODELS).length > 1;
   return (
-    <div className={`model-selector-wrap${disabled ? " model-selector-hidden" : ""}`} title={hasMultiple ? "切换生态模型" : "当前仅一个模型，预留扩展"}>
+    <div className={`model-selector-wrap${disabled ? " model-selector-hidden" : ""}`} title={hasMultiple ? String(t("model.switchTitle")) : String(t("model.singleTitle"))}>
       <span>🧬</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        aria-label="选择生态模型"
+        aria-label={String(t("model.selectLabel"))}
         disabled={disabled}
       >
         {Object.values(MODELS).map((m) => (

@@ -9,10 +9,10 @@ interface DisturbPanelProps {
 }
 
 export function DisturbPanel({ spec, onDisturb }: DisturbPanelProps) {
-  const { lang } = useI18n();
+  const { lang, t } = useI18n();
   return (
     <div className="disturb-section">
-      <div className="disturb-title">⚡ 生态扰动 (减少种群数量)</div>
+      <div className="disturb-title">{t("disturb.title")}</div>
       {spec.species.map((s) => (
         <div key={s.id} className="disturb-group">
           <div className="group-label">
@@ -41,7 +41,7 @@ export function DisturbPanel({ spec, onDisturb }: DisturbPanelProps) {
         </div>
       ))}
       <div className="note">
-        点击后即时减少当前种群对应百分比（不低于最小阈值），系统自动调节展现恢复力与周期性
+        {t("disturb.note")}
       </div>
     </div>
   );

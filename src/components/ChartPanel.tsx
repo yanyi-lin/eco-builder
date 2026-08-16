@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { UseEcoSimulation } from "../eco/useEcoSimulation";
 import type { UseEcoChart } from "../eco/useEcoChart";
 import { CustomLegend } from "./CustomLegend";
+import { useI18n } from "../i18n/LanguageProvider";
 import { DisturbPanel } from "./DisturbPanel";
 
 interface ChartPanelProps {
@@ -11,6 +12,7 @@ interface ChartPanelProps {
 }
 
 export function ChartPanel({ sim, chart, onOpenTuner }: ChartPanelProps) {
+  const { t } = useI18n();
   const [hiddenStates, setHiddenStates] = useState<boolean[]>(
     () => sim.spec.species.map(() => false),
   );
@@ -34,8 +36,8 @@ export function ChartPanel({ sim, chart, onOpenTuner }: ChartPanelProps) {
     });
   };
 
-  const playPauseLabel = sim.simulationRunning ? "⏸️ 暂停" : "▶️ 开始";
-  const startResetLabel = sim.simulationActive ? "🔄 重置模拟" : "▶️ 开始模拟";
+  const playPauseLabel = sim.simulationRunning ? String(t("chart.pause")) : String(t("chart.start"));
+  const startResetLabel = sim.simulationActive ? String(t("chart.reset")) : String(t("chart.startSimulation"));
 
   const handleStartReset = () => {
     if (!sim.simulationActive) sim.startSimulation();
@@ -69,9 +71,9 @@ export function ChartPanel({ sim, chart, onOpenTuner }: ChartPanelProps) {
             className="ctrl-btn ecotuner-hidden"
             disabled
             onClick={onOpenTuner}
-            title="Eco-Tuner（已禁用）"
+            title={String(t("chart.ecoTunerTitle"))}
           >
-            🎛️ Eco-Tuner
+            {t("chart.ecoTuner")}
           </button>
         </div>
         <div className="chart-container">

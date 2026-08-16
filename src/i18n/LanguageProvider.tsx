@@ -9,6 +9,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -77,6 +78,16 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     (key: MessageKey): ReactNode => (messages[lang] as Record<string, ReactNode>)[key] ?? key,
     [lang],
   );
+
+  // 动态页面标题与 <html lang>（双语 L2）
+  useEffect(() => {
+    try {
+      document.title = String(t("app.titlePage"));
+      document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+    } catch {
+      /* ignore */
+    }
+  }, [lang, t]);
 
   const value = useMemo(() => ({ lang, setLang, t }), [lang, setLang, t]);
 

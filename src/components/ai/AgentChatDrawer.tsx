@@ -1,4 +1,5 @@
 import type { UseEcoAgent } from "./useEcoAgent";
+import { useI18n } from "../../i18n/LanguageProvider";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 
@@ -13,26 +14,27 @@ export function AgentChatDrawer({
   collapsed,
   onToggle,
 }: AgentChatDrawerProps) {
+  const { t } = useI18n();
   const statusText = agent.isStreaming
-    ? "思考中..."
+    ? String(t("drawer.statusThinking"))
     : agent.status === "error"
-      ? "出错"
-      : "就绪";
+      ? String(t("drawer.statusError"))
+      : String(t("drawer.statusReady"));
 
   return (
     <div className={`ai-drawer${collapsed ? " collapsed" : ""}`}>
       <button
         className="ai-drawer-toggle"
         onClick={onToggle}
-        title={collapsed ? "展开智能体助手" : "收起智能体助手"}
+        title={collapsed ? String(t("drawer.expand")) : String(t("drawer.collapse"))}
       >
-        {collapsed ? "智能体" : "智能体助手"}
+        {collapsed ? String(t("drawer.collapsedLabel")) : String(t("drawer.expandedLabel"))}
       </button>
 
       {!collapsed && (
         <>
           <div className="ai-drawer-header">
-            <span className="ai-drawer-title">智能体助手</span>
+            <span className="ai-drawer-title">{t("drawer.title")}</span>
             <span className={`ai-drawer-status${agent.isStreaming ? " streaming" : ""}`}>
               {statusText}
             </span>

@@ -1,7 +1,11 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { useI18n } from "../i18n/LanguageProvider";
+import type { MessageKey } from "../i18n/messages";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
+  /** 双语文案（由外层函数组件注入，class 组件无法用 hook） */
+  t: (key: MessageKey) => ReactNode;
 }
 
 interface ErrorBoundaryState {
@@ -39,13 +43,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <div className="error-boundary">
           <div className="error-boundary-box">
-            <div className="error-boundary-title">😵 页面出错了</div>
+            <div className="error-boundary-title">{this.props.t("error.title")}</div>
             <div className="error-boundary-desc">
-              应用遇到了一个未预期的错误，可能来自图表渲染或 AI 消息解析。
+              {this.props.t("error.desc")}
             </div>
             <div className="error-boundary-msg">{this.state.message}</div>
             <button className="error-boundary-btn" onClick={this.handleReload}>
-              重新加载
+              {this.props.t("error.reload")}
             </button>
           </div>
         </div>
@@ -53,4 +57,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
     return this.props.children;
   }
+}
+
+/** 函数包装：在 LanguageProvider 内取 t 注入（class 组件无法使用 hook） */
+export function ErrorBoundaryI18n({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
+  return <ErrorBoundary t={t}>{children}</ErrorBoundary>;
 }

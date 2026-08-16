@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from "react";
+import { useI18n } from "../../i18n/LanguageProvider";
 
 interface MessageInputProps {
   onSend: (text: string) => void;
@@ -6,6 +7,7 @@ interface MessageInputProps {
 }
 
 export function MessageInput({ onSend, disabled }: MessageInputProps) {
+  const { t } = useI18n();
   const [text, setText] = useState("");
 
   const send = () => {
@@ -29,7 +31,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={disabled ? "AI 正在思考..." : "输入指令，Enter 发送 / Shift+Enter 换行"}
+        placeholder={disabled ? String(t("chat.inputThinking")) : String(t("chat.inputPlaceholder"))}
         disabled={disabled}
         rows={1}
       />
@@ -37,8 +39,8 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
         className="ai-send-btn"
         onClick={send}
         disabled={disabled || !text.trim()}
-        aria-label="发送"
-        title="发送"
+        aria-label={String(t("chat.send"))}
+        title={String(t("chat.send"))}
       >
         ➤
       </button>
