@@ -1,0 +1,32 @@
+# ========================= GitHub → Gitee 镜像同步 =========================
+# 单向只读镜像：push 到 main 时自动把完整历史同步到 Gitee（国内 clone/部署用）。
+# - Gitee 仓库：https://gitee.com/lin_Yanyi/eco-builder（公开，空仓库起步）
+# - 凭据：GITEE_TOKEN（GitHub Actions Secret，Gitee 私人令牌，仅 projects 权限）
+# - 安全：token 通过 credential helper 注入，不进入 URL 与日志
+# - 同步范围：main 分支 + 全部 tag；--force 保证镜像与 GitHub 完全一致
+# - 注意：若 Gitee 端默认分支仍是空的 master，可在 Gitee 设置里把默认分支改为 main
+
+name: Sync to Gitee
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    name: Mirror main to Gitee
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          git config --global credential.helper '!f() { echo "username=x-oauth-basic"; echo "password=${GITEE_TOKEN}"; }; f'
+          git remote add gitee https://gitee.com/lin_Yanyi/eco-builder.git
+          git push --force gitee "refs/heads/main:refs/heads/main"
+          git push --force gitee --tags
