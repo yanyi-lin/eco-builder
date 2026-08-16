@@ -22,6 +22,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Gitee GE007 钩子拒绝推送含 GitHub 隐藏邮箱（@users.noreply.github.com）的提交。
+      # 只读镜像方案：同步时把 noreply 邮箱重写为该贡献者的真实公开邮箱
+      # （liusonwood@outlook.com，git 历史有证据），不影响 GitHub 主仓。
+      - name: Rewrite hidden emails (Gitee GE007 hook)
+        run: |
+          git filter-branch --force --env-filter '
+            old="103164286+liusonwood@users.noreply.github.com"
+            new="liusonwood@outlook.com"
+            if [ "$GIT_AUTHOR_EMAIL" = "$old" ]; then export GIT_AUTHOR_EMAIL="$new"; fi
+            if [ "$GIT_COMMITTER_EMAIL" = "$old" ]; then export GIT_COMMITTER_EMAIL="$new"; fi
+          ' -- --all
+
       - name: Push to Gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
