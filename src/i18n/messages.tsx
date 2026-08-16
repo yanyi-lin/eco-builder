@@ -11,7 +11,7 @@ export type Lang = "zh" | "en";
 export const messages = {
   zh: {
     // === 语言切换 ===
-    "lang.toggle": "EN",
+    "lang.label": "语言",
 
     // === App 页头 ===
     "app.title.build": "生态模型构建器",
@@ -141,7 +141,7 @@ export const messages = {
     "app.modelInfo": "模型说明",
   },
   en: {
-    "lang.toggle": "中",
+    "lang.label": "Language",
 
     "app.title.build": "Eco Model Builder",
     "app.title.simulate": "Eco Model Builder",

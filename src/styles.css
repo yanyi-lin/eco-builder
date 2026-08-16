@@ -409,21 +409,34 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
 }
 .github-link svg { width: 14px; height: 14px; fill: currentColor; }
 
-/* 语言切换按钮（中/EN） */
-.lang-btn {
-  background: #e8f0e5;
+/* 语言选择长条（分段控件：中文/EN，当前语言深色高亮、另一个白色） */
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  height: 42px;
   border: 1.5px solid #8bc34a;
-  color: #2c5e3a;
-  border-radius: 40px;
-  padding: 6px 14px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.9rem;
-  transition: 0.15s;
+  border-radius: 21px;
+  overflow: hidden;
+  background: #fff;
   flex-shrink: 0;
 }
-.lang-btn:hover { background: #c8e0bb; }
+.lang-opt {
+  border: none;
+  background: transparent;
+  color: #2c5e3a;
+  padding: 0 14px;
+  height: 100%;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: 0.15s;
+}
+.lang-opt.active {
+  background: #2c5e3a;
+  color: #fff;
+}
+.lang-opt:hover:not(.active) { background: #e8f0e5; }
 
 /* Eco-Tuner 模态框 */
 #ecoTunerModal .modal-content {
@@ -853,6 +866,9 @@ input[type="number"] {
   border: none;
   border-radius: 20px;
   padding: 8px 16px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
   cursor: pointer;
   font-size: 0.9rem;
   font-weight: 500;

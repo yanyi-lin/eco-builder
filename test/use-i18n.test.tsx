@@ -17,7 +17,7 @@ function Probe() {
   return (
     <div>
       <span data-testid="lang">{lang}</span>
-      <span data-testid="toggle">{String(t("lang.toggle"))}</span>
+      <span data-testid="title">{String(t("app.title.build"))}</span>
       <button onClick={() => setLang(lang === "zh" ? "en" : "zh")}>switch</button>
     </div>
   );
@@ -37,7 +37,7 @@ describe("useI18n / LanguageProvider", () => {
   it("无 Provider 时默认 zh 且不抛错", () => {
     const { getByTestId } = render(<Probe />);
     expect(getByTestId("lang").textContent).toBe("zh");
-    expect(getByTestId("toggle").textContent).toBe("EN");
+    expect(getByTestId("title").textContent).toBe("生态模型构建器");
   });
 
   it("Provider 内切换语言生效，文案随之变化", () => {
@@ -47,10 +47,10 @@ describe("useI18n / LanguageProvider", () => {
       </LanguageProvider>,
     );
     expect(getByTestId("lang").textContent).toBe("zh");
-    expect(getByTestId("toggle").textContent).toBe("EN");
+    expect(getByTestId("title").textContent).toBe("生态模型构建器");
     act(() => getByText("switch").click());
     expect(getByTestId("lang").textContent).toBe("en");
-    expect(getByTestId("toggle").textContent).toBe("中");
+    expect(getByTestId("title").textContent).toBe("Eco Model Builder");
   });
 
   it("localStorage 记忆：重渲染后保持语言", () => {
