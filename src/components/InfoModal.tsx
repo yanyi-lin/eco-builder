@@ -26,7 +26,6 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
       >
         <div className="modal-content">
           <div className="info-title">生态学演示器</div>
-          <div className="info-sub">基于 Lotka-Volterra 三营养模型</div>
           <div className="info-desc">
             <p>
               <strong>教材依据</strong>
@@ -36,11 +35,9 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
               《生物与环境》
             </p>
             <p>
-              <strong>数学模型</strong>
+              <strong>项目定位</strong>
               <br />
-              植物 -&gt; 雪兔 -&gt; 猞猁 三级捕食系统
-              <br />
-              参数可调，展示周期性波动与生态恢复力
+              智能体协助的生态系统构建工具
             </p>
             <p>
               <strong>AI 助手</strong>
@@ -65,7 +62,6 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
             <div className="authors-label">制作者</div>
             <div className="author-names">
               <span>林炎逸</span>
-              <span>刘子木</span>
             </div>
           </div>
           <div className="modal-footer">
@@ -99,9 +95,9 @@ function CreditsModal({ onClose }: { onClose: () => void }) {
         <div className="info-title">鸣谢</div>
         <div className="credits-section-title">人类贡献者</div>
         <div className="credits-item">
-          <span className="credit-name">刘子木（liusonwood）</span>
+          <span className="credit-name">刘子木</span>
           <br />
-          提供 AI 助手交互的最初技术思路与宝贵反馈
+          提供 AI 助手交互的想法
         </div>
         <div className="credits-section-title">开源与数据支持</div>
         <div className="credits-item">
