@@ -1,13 +1,12 @@
 # ========================= GitHub → Gitee 镜像同步 =========================
-# 单向只读镜像（浅镜像方案）：push 到 main 时自动把**最近 20 个提交**同步到 Gitee
-# （国内 clone/部署用）。
+# 单向只读镜像（全量历史，最简版）：push 到 main 时自动把完整历史同步到 Gitee。
 # - Gitee 仓库：https://gitee.com/lin_Yanyi/eco-builder（公开）
-# - 为什么浅镜像：Gitee GE007 钩子拒绝含 GitHub 隐藏邮箱的提交；最近 20 个提交
-#   全部为 yanyi_lin 的公开邮箱提交（noreply 均在远古历史），浅同步天然绕过钩子，
-#   无需重写历史。代价：Gitee 镜像不含最早历史（教学部署场景可接受）。
 # - 凭据：GITEE_TOKEN（GitHub Actions Secret，Gitee 私人令牌，仅 projects 权限）
 # - 安全：token 通过 credential helper 注入，不进入 URL 与日志
-# - 默认分支：push 后通过 API 把 Gitee 默认分支设为 main（新仓库默认空 master 会导致 clone 拉空）
+# - 默认分支：push 后通过 API 把 Gitee 默认分支设为 main（防新仓库空 master 拉空）
+# - 备注：历史含 GitHub noreply 邮箱提交，若 Gitee 邮箱隐私校验仍开启会触发
+#   GE007（hook declined）；届时需在 Gitee 账号设置关闭"禁止命令行推送暴露个人邮箱"，
+#   或回到带 filter-branch 重写的版本。
 
 name: Sync to Gitee
 
@@ -20,10 +19,10 @@ jobs:
     name: Mirror main to Gitee
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (recent history, shallow mirror)
+      - name: Checkout (full history)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 20
+          fetch-depth: 0
 
       - name: Push to Gitee
         env:
