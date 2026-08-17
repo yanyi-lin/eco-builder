@@ -14,6 +14,12 @@ on:
   push:
     branches: [main]
 
+# 密集 push 防竞态：同一时间只保留一个同步 run（进行中的旧 run 自动取消），
+# 保证 Gitee 最终等于 GitHub 最新版本（force push 乱序覆盖的兜底）
+concurrency:
+  group: gitee-sync
+  cancel-in-progress: true
+
 jobs:
   sync:
     name: Mirror main to Gitee
