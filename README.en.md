@@ -5,6 +5,8 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 
+English | [中文](README.md)
+
 An interactive ecological simulation tool **assisted by AI agents**: build, simulate, and analyze arbitrary ecological models using **natural language**. Supports a bilingual interface (Chinese / English).
 
 - **AI-Assisted**

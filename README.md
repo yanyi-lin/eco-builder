@@ -5,7 +5,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 
-
+[English](README.en.md) | 中文
 
 **智能体协助**的交互式生态学模拟工具：通过**自然语言**即可构建、模拟与分析任意生态模型。支持中/英双语界面。
 
