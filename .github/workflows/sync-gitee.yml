@@ -40,7 +40,7 @@ jobs:
           git config --global http.lowSpeedLimit 1000
           git config --global http.lowSpeedTime 90
           git remote add gitee https://gitee.com/lin_Yanyi/eco-builder.git
-          git push --force gitee "refs/heads/main:refs/heads/main"
+          git push gitee "refs/heads/main:refs/heads/main"
           # 把 Gitee 默认分支设为 main（否则新仓库默认空 master，clone 会拉空）
           curl -s -X PATCH "https://gitee.com/api/v5/repos/lin_Yanyi/eco-builder" \
             -H "Content-Type: application/json" \
