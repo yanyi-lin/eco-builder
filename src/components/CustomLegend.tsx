@@ -8,12 +8,14 @@ interface CustomLegendProps {
   /** 各 dataset 当前 hidden 状态，index 对应 spec.species 顺序 */
   hiddenStates: boolean[];
   onToggle: (index: number) => void;
+  /** 各物种实时数量序列（chip 内显示最新值，纯显示） */
+  counts?: Record<string, number[]>;
 }
 
-export function CustomLegend({ spec, hiddenStates, onToggle }: CustomLegendProps) {
+/** 图鉴式图例 chips：浮于图表卡右上角。
+ *  色点 + 物种名 + 实时数量 + 轴徽章；点击切换曲线显隐（aria-pressed）。 */
+export function CustomLegend({ spec, hiddenStates, onToggle, counts }: CustomLegendProps) {
   const { lang, t } = useI18n();
-  const leftRange = spec.axisRanges.left;
-  const rightRange = spec.axisRanges.right;
   const nameOf = (s: (typeof spec.species)[number]) => displayName(s.name, s.name_en, lang);
   // 名单分隔符随语言切换（中文顿号 / 英文逗号）
   const joinNames = (list: (typeof spec.species)[number][]) =>
@@ -30,44 +32,59 @@ export function CustomLegend({ spec, hiddenStates, onToggle }: CustomLegendProps
       joinNames(spec.species.filter((s) => s.axis === "right")) || String(t("legend.otherFallback")),
     )
     .replace("{n}", String(MAX_DATA_POINTS));
+
   return (
-    <div className="legend-section">
-      <div className="legend-title">{t("legend.title")}</div>
-      {spec.species.map((s, i) => {
-        const rangeText =
-          s.axis === "left"
-            ? `${String(t("legend.leftAxis"))} ${leftRange.min}~${leftRange.max}`
-            : `${String(t("legend.rightAxis"))} ${rightRange.min}~${rightRange.max}`;
-        const hidden = !!hiddenStates[i];
-        return (
-          // 图例项为可交互按钮（修复：原为 div onClick，键盘与读屏无法操作），
-          // aria-pressed 表达「曲线隐藏/显示」状态
-          <button
-            key={s.id}
-            type="button"
-            className={`legend-item${hidden ? " hidden" : ""}`}
-            onClick={() => onToggle(i)}
-            aria-pressed={hidden}
-          >
-            <div className="color-badge" style={{ background: s.color }} aria-hidden="true" />
-            {s.icon && (
-              <img
-                className="legend-icon"
-                src={s.icon}
-                alt=""
-                aria-hidden="true"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            )}
-            {/* 空间不足时名称省略显示，悬停可看完整名 */}
-            <span className="species-name" title={nameOf(s)}>{nameOf(s)}</span>
-            <span className="scale-info">{rangeText}</span>
-          </button>
-        );
-      })}
-      <div className="note">※ {note}</div>
+    <div className="legend-chips">
+      <div
+        className="legend-chip-row"
+        role="group"
+        aria-label={String(t("legend.title"))}
+      >
+        {spec.species.map((s, i) => {
+          const hidden = !!hiddenStates[i];
+          const count = counts?.[s.id]?.[counts[s.id].length - 1];
+          const axisShort =
+            s.axis === "left"
+              ? String(t("legend.axisLeftShort"))
+              : String(t("legend.axisRightShort"));
+          return (
+            // 图例项为可交互按钮（键盘与读屏可操作），
+            // aria-pressed 表达「曲线隐藏/显示」状态
+            <button
+              key={s.id}
+              type="button"
+              className={`legend-chip${hidden ? " hidden" : ""}`}
+              onClick={() => onToggle(i)}
+              aria-pressed={hidden}
+              title={nameOf(s)}
+            >
+              <span className="chip-dot" style={{ background: s.color }} aria-hidden="true" />
+              {s.icon && (
+                <img
+                  className="chip-icon"
+                  src={s.icon}
+                  alt=""
+                  aria-hidden="true"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
+              <span className="chip-name">{nameOf(s)}</span>
+              {/* 实时数量：纯显示，变化频繁故对读屏隐藏，避免干扰 */}
+              {count !== undefined && (
+                <span className="chip-count" aria-hidden="true">
+                  {Math.round(count)}
+                </span>
+              )}
+              <span className="chip-axis" aria-hidden="true">
+                {axisShort}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="legend-note">※ {note}</p>
     </div>
   );
 }

@@ -172,10 +172,13 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
             title: {
               display: true,
               text: String(t("chart.axisTime")),
-              color: "#3a6b3a",
+              // canvas 不解析 CSS 变量，直接用 --bark 的具体色值
+              color: "#6b4f3a",
               font: { weight: "bold" },
             },
-            grid: { color: "#e2efda" },
+            // 记录纸网格：暖褐淡色，低调保留结构感
+            grid: { color: "rgba(107, 79, 58, 0.10)" },
+            border: { color: "rgba(107, 79, 58, 0.30)" },
           },
           "y-plant": {
             type: "linear",
@@ -188,7 +191,8 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
             },
             min: left.min,
             max: left.max,
-            grid: { color: "#e2e9dc" },
+            // 记录纸网格：暖褐淡色（与 x 轴一致）
+            grid: { color: "rgba(107, 79, 58, 0.10)" },
             ticks: { stepSize: left.step, color: left.color },
           },
           "y-prey": {

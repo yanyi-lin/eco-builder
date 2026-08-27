@@ -36,6 +36,8 @@ export const messages = {
     "chart.axisTime": "模拟时间 (相对单位)",
     "chart.tooltipUnit": "个体/面积",
     "chart.canvasAria": "种群数量随时间变化折线图，包含物种：{species}",
+    "chart.timeReadout": "模拟时间 {time}",
+    "plot.label": "样方",
 
     // === DisturbPanel 扰动 ===
     "disturb.title": "生态扰动（减少种群数量）",
@@ -51,6 +53,8 @@ export const messages = {
     "legend.leftFallback": "左侧物种",
     "legend.otherFallback": "其他物种",
     "legend.note": "{left}位于左轴，{right}位于右轴。点击图例可隐藏/显示曲线，再次点击恢复。曲线最多保留最近 {n} 个采样点，更早的数据会滚动移出。",
+    "legend.axisLeftShort": "左",
+    "legend.axisRightShort": "右",
 
     // === BuilderPanel 构建面板 ===
     "builder.species": "物种",
@@ -183,6 +187,8 @@ export const messages = {
     "chart.axisTime": "Simulation time (relative units)",
     "chart.tooltipUnit": "individuals/area",
     "chart.canvasAria": "Line chart of population over time, species: {species}",
+    "chart.timeReadout": "Simulation time {time}",
+    "plot.label": "Quadrat",
 
     "disturb.title": "Ecological Disturbance (reduce population)",
     "disturb.reduceAria": "Reduce {species} population by {percent}%",
@@ -196,6 +202,8 @@ export const messages = {
     "legend.leftFallback": "Left-side species",
     "legend.otherFallback": "Other species",
     "legend.note": "{left} on the left axis; {right} on the right axis. Click a legend item to hide/show curves; click again to restore. Curves keep at most the latest {n} samples; older data scrolls out.",
+    "legend.axisLeftShort": "L",
+    "legend.axisRightShort": "R",
 
     "builder.species": "Species",
     "builder.relations": "Relations",

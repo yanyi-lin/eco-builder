@@ -33,7 +33,7 @@ describe("CustomLegend 说明文字模板", () => {
 
   it("中文：整句渲染，名单用顿号分隔，含采样点上限", () => {
     const { getByText } = renderLegend(spec());
-    const note = getByText((_, el) => el?.className === "note")?.textContent ?? "";
+    const note = getByText((_, el) => el?.className === "legend-note")?.textContent ?? "";
     // 植物在左轴；雪兔、猞猁在右轴（顿号分隔）
     expect(note).toContain("植物种群位于左轴");
     expect(note).toContain("雪兔种群、猞猁种群位于右轴");
@@ -44,7 +44,7 @@ describe("CustomLegend 说明文字模板", () => {
   it("英文：整句渲染，名单用逗号分隔，英文种名", () => {
     localStorage.setItem(STORAGE_KEY, "en");
     const { getByText } = renderLegend(spec());
-    const note = getByText((_, el) => el?.className === "note")?.textContent ?? "";
+    const note = getByText((_, el) => el?.className === "legend-note")?.textContent ?? "";
     expect(note).toContain("Plant population on the left axis");
     expect(note).toContain("Snowshoe hare population, Lynx population on the right axis");
     // 修复前 "axis.Click" 缺空格——说明句内部必须有正常空格衔接
@@ -56,7 +56,7 @@ describe("CustomLegend 说明文字模板", () => {
     // 把左轴物种改为右轴，制造左侧空列表
     onlyRight.species[0].axis = "right";
     const { getByText } = renderLegend(onlyRight);
-    const note = getByText((_, el) => el?.className === "note")?.textContent ?? "";
+    const note = getByText((_, el) => el?.className === "legend-note")?.textContent ?? "";
     expect(note).toContain("左侧物种位于左轴");
   });
 
@@ -65,7 +65,7 @@ describe("CustomLegend 说明文字模板", () => {
     const onlyRight = getModel(DEFAULT_MODEL_ID);
     onlyRight.species[0].axis = "right";
     const { getByText } = renderLegend(onlyRight);
-    const note = getByText((_, el) => el?.className === "note")?.textContent ?? "";
+    const note = getByText((_, el) => el?.className === "legend-note")?.textContent ?? "";
     expect(note).toContain("Left-side species on the left axis");
   });
 });

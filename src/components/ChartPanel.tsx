@@ -61,44 +61,73 @@ export function ChartPanel({ sim, chart, onOpenTuner }: ChartPanelProps) {
       .join("、"),
   );
 
+  // 控制条时间读数：最新采样时刻（数据已在 sim 中，纯显示无新交互）
+  const lastTime = sim.timeData[sim.timeData.length - 1];
+
   return (
-    <>
-      <div className="left-chart-area">
-        <div className="chart-controls">
-          <button className="ctrl-btn" onClick={handlePrimary}>
-            {primaryLabel}
-          </button>
-          {/* 重置属破坏性操作（清空曲线），仅在模拟已启动时提供 */}
-          {sim.simulationActive && (
-            <button className="ctrl-btn secondary" onClick={sim.fullReset}>
-              {t("chart.reset")}
-            </button>
-          )}
-          <button
-            className="ctrl-btn ecotuner-hidden"
-            disabled
-            onClick={onOpenTuner}
-            title={String(t("chart.ecoTunerTitle"))}
-          >
-            {t("chart.ecoTuner")}
-          </button>
+    <div className="plot-area">
+      {/* 图表卡（主角）：canvas + 浮层样方标签 + 图例 chips */}
+      <div className="chart-card">
+        <div className="plot-tag-inline" aria-hidden="true">
+          {t("plot.label")} · {displayName(sim.spec.name, sim.spec.name_en, lang)}
         </div>
+        <CustomLegend
+          spec={sim.spec}
+          hiddenStates={hiddenStates}
+          onToggle={handleToggle}
+          counts={sim.history}
+        />
         <div className="chart-container">
           <canvas ref={chart.setCanvas} width={800} height={450} role="img" aria-label={canvasAria} />
         </div>
       </div>
 
-      <div className="right-panel">
-        <CustomLegend
-          spec={sim.spec}
-          hiddenStates={hiddenStates}
-          onToggle={handleToggle}
-        />
-        <DisturbPanel
-          spec={sim.spec}
-          onDisturb={sim.applyDisturbance}
-        />
+      {/* 走带控制条：播放器隐喻，移至图表下方 */}
+      <div className="chart-controls">
+        <button className="ctrl-btn" onClick={handlePrimary}>
+          <PlayPauseIcon running={sim.simulationActive && sim.simulationRunning} />
+          {primaryLabel}
+        </button>
+        {/* 重置属破坏性操作（清空曲线），仅在模拟已启动时提供 */}
+        {sim.simulationActive && (
+          <button className="ctrl-btn secondary" onClick={sim.fullReset}>
+            {t("chart.reset")}
+          </button>
+        )}
+        <button
+          className="ctrl-btn ecotuner-hidden"
+          disabled
+          onClick={onOpenTuner}
+          title={String(t("chart.ecoTunerTitle"))}
+        >
+          {t("chart.ecoTuner")}
+        </button>
+        {sim.simulationActive && (
+          <span className="time-readout" aria-label={String(t("chart.timeReadout")).replace("{time}", lastTime.toFixed(1))}>
+            t = <b>{lastTime.toFixed(1)}</b>
+          </span>
+        )}
       </div>
-    </>
+
+      {/* 种群干预（扰动）横排面板 */}
+      <DisturbPanel
+        spec={sim.spec}
+        onDisturb={sim.applyDisturbance}
+      />
+    </div>
+  );
+}
+
+/** 主按钮内联图标：运行中显示暂停双杠，否则显示播放三角 */
+function PlayPauseIcon({ running }: { running: boolean }) {
+  return running ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="ctrl-icon">
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="ctrl-icon">
+      <path d="M8 5.5v13a1 1 0 0 0 1.54.84l10-6.5a1 1 0 0 0 0-1.68l-10-6.5A1 1 0 0 0 8 5.5Z" />
+    </svg>
   );
 }
