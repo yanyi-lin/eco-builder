@@ -84,7 +84,7 @@ export function ChartPanel({ sim, chart, onOpenTuner }: ChartPanelProps) {
           </button>
         </div>
         <div className="chart-container">
-          <canvas ref={chart.canvasRef} width={800} height={450} role="img" aria-label={canvasAria} />
+          <canvas ref={chart.setCanvas} width={800} height={450} role="img" aria-label={canvasAria} />
         </div>
       </div>
 

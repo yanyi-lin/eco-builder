@@ -15,7 +15,21 @@ export function CustomLegend({ spec, hiddenStates, onToggle }: CustomLegendProps
   const leftRange = spec.axisRanges.left;
   const rightRange = spec.axisRanges.right;
   const nameOf = (s: (typeof spec.species)[number]) => displayName(s.name, s.name_en, lang);
-  const windowNote = String(t("legend.windowNote")).replace("{n}", String(MAX_DATA_POINTS));
+  // 名单分隔符随语言切换（中文顿号 / 英文逗号）
+  const joinNames = (list: (typeof spec.species)[number][]) =>
+    list.map(nameOf).join(lang === "en" ? ", " : "、");
+  // 图例说明为整句 i18n 模板（{left}/{right}/{n} 占位），避免多 key 拼接
+  // 在英文下产生语序与空格问题
+  const note = String(t("legend.note"))
+    .replace(
+      "{left}",
+      joinNames(spec.species.filter((s) => s.axis === "left")) || String(t("legend.leftFallback")),
+    )
+    .replace(
+      "{right}",
+      joinNames(spec.species.filter((s) => s.axis === "right")) || String(t("legend.otherFallback")),
+    )
+    .replace("{n}", String(MAX_DATA_POINTS));
   return (
     <div className="legend-section">
       <div className="legend-title">{t("legend.title")}</div>
@@ -47,17 +61,13 @@ export function CustomLegend({ spec, hiddenStates, onToggle }: CustomLegendProps
                 }}
               />
             )}
-            <span className="species-name">{nameOf(s)}</span>
+            {/* 空间不足时名称省略显示，悬停可看完整名 */}
+            <span className="species-name" title={nameOf(s)}>{nameOf(s)}</span>
             <span className="scale-info">{rangeText}</span>
           </button>
         );
       })}
-      <div className="note">
-        ※ {spec.species.filter((s) => s.axis === "left").map((s) => nameOf(s)).join("、") || t("legend.leftFallback")}{t("legend.noteLeft")}
-        {spec.species.filter((s) => s.axis === "right").map((s) => nameOf(s)).join("、") || t("legend.otherFallback")}{t("legend.noteRight")}
-        {t("legend.noteToggle")}
-        {windowNote}
-      </div>
+      <div className="note">※ {note}</div>
     </div>
   );
 }

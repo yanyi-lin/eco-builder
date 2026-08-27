@@ -210,6 +210,7 @@ export function inferDefaultParams(species: SpeciesDef[]): {
       
       paramMeta[sp.growthRate] = {
         label: `${sp.growthRate} (${sp.name}增长率)`,
+        label_en: `${sp.growthRate} (${sp.name_en ?? sp.name} growth rate)`,
         group: "dynamic",
         min: 0.05,
         max: 0.8,
@@ -218,6 +219,7 @@ export function inferDefaultParams(species: SpeciesDef[]): {
       };
       paramMeta[sp.carryingCapacity] = {
         label: `${sp.carryingCapacity} (${sp.name}容纳量)`,
+        label_en: `${sp.carryingCapacity} (${sp.name_en ?? sp.name} carrying capacity)`,
         group: "dynamic",
         min: 50,
         max: 500,
@@ -226,6 +228,7 @@ export function inferDefaultParams(species: SpeciesDef[]): {
       };
       paramMeta[initKey] = {
         label: `${initKey} (${sp.name}初始)`,
+        label_en: `${initKey} (${sp.name_en ?? sp.name} initial)`,
         group: "initial",
         min: 10,
         max: 300,
@@ -239,6 +242,7 @@ export function inferDefaultParams(species: SpeciesDef[]): {
       params[sp.deathRate] = 0.15;
       paramMeta[sp.deathRate] = {
         label: `${sp.deathRate} (${sp.name}死亡率)`,
+        label_en: `${sp.deathRate} (${sp.name_en ?? sp.name} death rate)`,
         group: "dynamic",
         min: 0.05,
         max: 0.5,
@@ -252,6 +256,7 @@ export function inferDefaultParams(species: SpeciesDef[]): {
       if (!(initKey in params)) params[initKey] = sp.initial ?? 30;
       paramMeta[initKey] = {
         label: `${initKey} (${sp.name}初始)`,
+        label_en: `${initKey} (${sp.name_en ?? sp.name} initial)`,
         group: "initial",
         min: 5,
         max: 100,
@@ -265,6 +270,7 @@ export function inferDefaultParams(species: SpeciesDef[]): {
   params.dt = 0.045;
   paramMeta.dt = {
     label: "dt (积分步长)",
+    label_en: "dt (Integration step)",
     group: "dynamic",
     min: 0.01,
     max: 0.1,
@@ -275,7 +281,9 @@ export function inferDefaultParams(species: SpeciesDef[]): {
   return { params, paramMeta };
 }
 
-/** 为关系添加参数（自动生成唯一参数键，避免 LLM 传键名冲突） */
+/** 为关系添加参数（自动生成唯一参数键，避免 LLM 传键名冲突）
+ *  speciesNamesEn：物种英文名映射（可选），用于生成 label_en；
+ *  缺省时英文标签退化为中文名（数据层面无英文名可用）。 */
 export function addRelationParams(
   relation: RelationDef,
   params: Record<string, number>,
@@ -283,6 +291,7 @@ export function addRelationParams(
   speciesNames: Record<string, string>,
   existingRelations?: RelationDef[],
   species?: SpeciesDef[],
+  speciesNamesEn?: Record<string, string>,
 ): void {
   if (relation.type === "predation") {
     const prey = relation.prey ?? "prey";
@@ -307,9 +316,13 @@ export function addRelationParams(
 
     const preyName = speciesNames[prey] || prey;
     const predatorName = speciesNames[predator] || predator;
+    // 英文名：优先取英文映射，缺省退化为中文名
+    const preyNameEn = speciesNamesEn?.[prey] ?? preyName;
+    const predatorNameEn = speciesNamesEn?.[predator] ?? predatorName;
 
     paramMeta[predationRate] = {
       label: `${predatorName}捕食${preyName}率`,
+      label_en: `${predatorNameEn}→${preyNameEn} predation rate`,
       group: "dynamic",
       min: 0.002,
       max: 0.015,
@@ -318,6 +331,7 @@ export function addRelationParams(
     };
     paramMeta[conversionEfficiency] = {
       label: `${preyName}→${predatorName}转化`,
+      label_en: `${preyNameEn}→${predatorNameEn} conversion`,
       group: "dynamic",
       min: 0.1,
       max: 0.9,
@@ -345,6 +359,7 @@ export function addRelationParams(
       params[predatorDeathRate] = clampNum(params[predatorDeathRate] ?? 0.08, 0.03, 0.12);
       paramMeta[predatorDeathRate] = {
         label: `${predatorName}死亡率`,
+        label_en: `${predatorNameEn} mortality`,
         group: "dynamic",
         min: 0.03,
         max: 0.12,
@@ -371,9 +386,12 @@ export function addRelationParams(
 
     const sp1Name = speciesNames[sp1] || sp1;
     const sp2Name = speciesNames[sp2] || sp2;
+    const sp1NameEn = speciesNamesEn?.[sp1] ?? sp1Name;
+    const sp2NameEn = speciesNamesEn?.[sp2] ?? sp2Name;
 
     paramMeta[coeff1] = {
       label: `${sp1Name}竞争系数`,
+      label_en: `${sp1NameEn} competition coeff.`,
       group: "dynamic",
       min: 0.001,
       max: 0.02,
@@ -382,6 +400,7 @@ export function addRelationParams(
     };
     paramMeta[coeff2] = {
       label: `${sp2Name}竞争系数`,
+      label_en: `${sp2NameEn} competition coeff.`,
       group: "dynamic",
       min: 0.001,
       max: 0.02,
@@ -402,9 +421,12 @@ export function addRelationParams(
 
     const sp1Name = speciesNames[sp1] || sp1;
     const sp2Name = speciesNames[sp2] || sp2;
+    const sp1NameEn = speciesNamesEn?.[sp1] ?? sp1Name;
+    const sp2NameEn = speciesNamesEn?.[sp2] ?? sp2Name;
 
     paramMeta[coeff1] = {
       label: `${sp1Name}互利系数`,
+      label_en: `${sp1NameEn} mutualism coeff.`,
       group: "dynamic",
       min: 0.001,
       max: 0.01,
@@ -413,6 +435,7 @@ export function addRelationParams(
     };
     paramMeta[coeff2] = {
       label: `${sp2Name}互利系数`,
+      label_en: `${sp2NameEn} mutualism coeff.`,
       group: "dynamic",
       min: 0.001,
       max: 0.01,
@@ -529,10 +552,10 @@ export function buildModel(
       if (params[initKey] === undefined) params[initKey] = sp.initial;
       // 补参数元数据
       if (paramMeta[rKey] === undefined) {
-        paramMeta[rKey] = { label: `${sp.name}增长率`, group: "dynamic", min: 0.05, max: 0.8, step: 0.005, digits: 3 };
+        paramMeta[rKey] = { label: `${sp.name}增长率`, label_en: `${sp.name_en ?? sp.name} growth rate`, group: "dynamic", min: 0.05, max: 0.8, step: 0.005, digits: 3 };
       }
       if (paramMeta[kKey] === undefined) {
-        paramMeta[kKey] = { label: `${sp.name}容纳量`, group: "dynamic", min: 50, max: 500, step: 10, digits: 0 };
+        paramMeta[kKey] = { label: `${sp.name}容纳量`, label_en: `${sp.name_en ?? sp.name} carrying capacity`, group: "dynamic", min: 50, max: 500, step: 10, digits: 0 };
       }
     }
     return out;

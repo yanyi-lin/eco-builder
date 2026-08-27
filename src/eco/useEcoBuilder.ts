@@ -29,7 +29,7 @@ export function useEcoBuilder(
   const [relations, setRelations] = useState<RelationDef[]>([]);
   const [params, setParams] = useState<Record<string, number>>({ dt: 0.045 });
   const [paramMeta, setParamMeta] = useState<Record<string, ParamMeta>>({
-    dt: { label: "dt (积分步长)", group: "dynamic", min: 0.01, max: 0.1, step: 0.001, digits: 3 },
+    dt: { label: "dt (积分步长)", label_en: "dt (Integration step)", group: "dynamic", min: 0.01, max: 0.1, step: 0.001, digits: 3 },
   });
 
   const stateRef = useRef({ species, relations, params, paramMeta });
@@ -70,8 +70,10 @@ export function useEcoBuilder(
     const newMeta = { ...stateRef.current.paramMeta };
     
     const speciesNames: Record<string, string> = {};
+    const speciesNamesEn: Record<string, string> = {};
     for (const sp of stateRef.current.species) {
       speciesNames[sp.id] = sp.name;
+      speciesNamesEn[sp.id] = sp.name_en ?? sp.name;
     }
     
     // 传入已有关系（判断顶级捕食者）与物种列表（判断资源型猎物，调整捕食率）
@@ -82,6 +84,7 @@ export function useEcoBuilder(
       speciesNames,
       stateRef.current.relations,
       stateRef.current.species,
+      speciesNamesEn,
     );
     
     setParams(newParams);
@@ -97,7 +100,7 @@ export function useEcoBuilder(
     setRelations([]);
     setParams({ dt: 0.045 });
     setParamMeta({
-      dt: { label: "dt (积分步长)", group: "dynamic", min: 0.01, max: 0.1, step: 0.001, digits: 3 },
+      dt: { label: "dt (积分步长)", label_en: "dt (Integration step)", group: "dynamic", min: 0.01, max: 0.1, step: 0.001, digits: 3 },
     });
   }, []);
 

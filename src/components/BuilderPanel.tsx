@@ -96,16 +96,21 @@ export function BuilderPanel({ builder }: BuilderPanelProps) {
       <div className="builder-section">
         <h3>{t("builder.params")}</h3>
         <div className="params-grid">
-          {Object.entries(state.params).map(([key, value]) => (
-            <div key={key} className="param-item">
-              {/* 优先展示 paramMeta 的人类可读标签（如「内禀增长率」），
-                  键名仅作辅助，方便与 AI 指令中的参数名对照 */}
-              <span className="param-key" title={key}>
-                {state.paramMeta[key]?.label ?? key}
-              </span>
-              <span className="param-value">{typeof value === "number" ? value.toFixed(4) : value}</span>
-            </div>
-          ))}
+          {Object.entries(state.params).map(([key, value]) => {
+            const meta = state.paramMeta[key];
+            // 英文界面优先展示 label_en（缺省退化为中文 label），与模型参数面板行为一致
+            const zhLabel = meta?.label ?? key;
+            return (
+              <div key={key} className="param-item">
+                {/* 优先展示 paramMeta 的人类可读标签（如「内禀增长率」），
+                    键名仅作辅助，方便与 AI 指令中的参数名对照 */}
+                <span className="param-key" title={key}>
+                  {displayName(zhLabel, meta?.label_en ?? zhLabel, lang)}
+                </span>
+                <span className="param-value">{typeof value === "number" ? value.toFixed(4) : value}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

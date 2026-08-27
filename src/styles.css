@@ -131,7 +131,7 @@ h1 {
 }
 .left-chart-area { flex: 3; min-width: 280px; }
 .right-panel {
-  flex: 1.2;
+  flex: 1.4;
   min-width: 280px;
   background: #fefef5;
   border-radius: 1.5rem;
@@ -175,6 +175,8 @@ h1 {
   padding: 0.6rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   border: 1px solid #dde6d5;
+  /* 移动端单列布局下 flex 容器高度不稳，保底高度防止图表区域塌陷为空白 */
+  min-height: 240px;
 }
 canvas { width: 100% !important; height: auto !important; max-height: 460px; }
 
@@ -193,8 +195,11 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
 .legend-item {
   display: flex;
   align-items: center;
+  /* 窄列时轴徽章换行到第二行，保证物种名完整可读 */
+  flex-wrap: wrap;
+  row-gap: 4px;
   margin-bottom: 0.8rem;
-  gap: 12px;
+  gap: 8px;
   cursor: pointer;
   transition: opacity 0.2s, background-color 0.1s;
   padding: 6px 10px;
@@ -217,8 +222,8 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   flex-shrink: 0;
 }
 .legend-icon {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
   vertical-align: middle;
   flex-shrink: 0;
@@ -226,7 +231,12 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
 .species-name {
   font-weight: 600;
   font-size: 1rem;
-  flex: 1;
+  /* 基准宽 120px：图例列较窄时与轴徽章分行，物种名独占整行完整显示 */
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .scale-info {
   font-size: 0.75rem;
@@ -236,6 +246,9 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   border-radius: 40px;
   font-family: monospace;
   white-space: nowrap;
+  /* 轴徽章整体不可收缩；换行时左缩进对齐到物种名起点 */
+  flex-shrink: 0;
+  margin-left: 60px;
 }
 .note {
   font-size: 0.8rem;
@@ -712,6 +725,8 @@ input[type="number"] {
   padding: 0.5rem 0.8rem;
   font-family: inherit;
   font-size: 0.9rem;
+  /* 保底两行高度，防止占位文案第二行被裁断 */
+  min-height: 3.4rem;
   max-height: 120px;
   background: white;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Chart,
   type ChartConfiguration,
@@ -15,8 +15,9 @@ import { useI18n } from "../i18n/LanguageProvider";
 const RENDER_INTERVAL_MS = 80;
 
 export interface UseEcoChart {
-  /** canvas ref，组件挂到 <canvas> 上 */
-  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** canvas 回调 ref，组件挂到 <canvas> 上；
+   *  canvas 元素挂载/替换（如模式切换重建 DOM）会触发图表重建 */
+  setCanvas: (instance: HTMLCanvasElement | null) => void;
   /** 同步最新数据到图表并刷新（按 spec.species 顺序填充 dataset） */
   setData: (
     history: Record<string, number[]>,
@@ -31,7 +32,9 @@ export interface UseEcoChart {
 
 export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
   const { lang, t } = useI18n();
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // canvas 以 state 持有：ChartPanel 随模式切换卸载/重挂会产出新 canvas 元素，
+  // 只有让 canvas 进入 effect 依赖，新元素才能触发图表重建（否则新 canvas 无人接管）
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const chartRef = useRef<Chart<"line"> | null>(null);
   // 持有最新 spec，供方法闭包读取，避免 spec 切换后引用旧值
   const specRef = useRef(spec);
@@ -129,15 +132,13 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
   /** 创建图表实例。
    *  若 canvas 上已注册 Chart 实例（StrictMode 重挂载残留），先销毁它再创建，
    *  避免 "Canvas is already in use"。仅检查 canvas 本身的注册，不动 chartRef。 */
-  const createChart = (): Chart<"line"> | null => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
+  const createChart = (canvasEl: HTMLCanvasElement): Chart<"line"> | null => {
     // 防止 canvas 被占用：销毁该 canvas 上已注册的任何实例
-    const occupied = Chart.getChart(canvas);
+    const occupied = Chart.getChart(canvasEl);
     if (occupied) {
       occupied.destroy();
     }
-    const ctx = canvas.getContext("2d");
+    const ctx = canvasEl.getContext("2d");
     if (!ctx) return null;
 
     const currentSpec = specRef.current;
@@ -326,16 +327,18 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
   // 单一 effect 管理图表生命周期。
   // 关键：cleanup 用 destroyChart（仅 chartRef），createChart 用 Chart.getChart(canvas)
   // 防占用。两者检查不同对象，避免 StrictMode 重挂载循环中互相误杀。
+  // canvas 进入依赖：ChartPanel 重挂载产生新 canvas 时强制重建图表。
   useEffect(() => {
-    createChart();
+    if (!canvas) return;
+    createChart(canvas);
     return () => {
       destroyChart();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spec.id]);
+  }, [canvas, spec.id]);
 
   return {
-    canvasRef,
+    setCanvas,
     setData,
     resetDatasetsVisibility,
     toggleDataset,
