@@ -9,6 +9,8 @@ export default defineConfig({
     sourcemap: false,
   },
   server: {
+    // 平台预览代理访问所需的主机白名单
+    allowedHosts: [".monkeycode-ai.online"],
     // 本地开发：前端 5173 → 后端 3000（npm run dev:server）。
     // 生产部署为同源（Node 服务直接出静态 + /api），无需代理。
     proxy: {
