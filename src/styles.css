@@ -8,13 +8,31 @@ html, body, #root {
 }
 
 body {
-  font-family: 'Segoe UI', 'Roboto', system-ui;
+  /* 中文优先系统栈：macOS/Windows 投影下字形统一，避免中文回落到浏览器默认 */
+  font-family: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Roboto', system-ui, sans-serif;
   background: #f0f7f0;
 }
 
-/* 内容区允许选中（聊天输入等），其他保持原版不可选 */
-.dashboard, .dashboard * { user-select: none; }
-.ai-drawer, .ai-drawer * { user-select: text; }
+/* 焦点可见性（键盘导航底线）：统一的焦点描边，浏览器默认 outline 更醒目 */
+:focus-visible {
+  outline: 2px solid #2c5e3a;
+  outline-offset: 2px;
+}
+
+/* 触屏：消除双击缩放延迟，提升按钮响应手感 */
+button {
+  touch-action: manipulation;
+}
+
+/* 模拟运行 / 消息流等数值区域用等宽数字，避免刷新时抖动 */
+.scale-info,
+.param-value,
+.ai-tool-chip,
+.param-item,
+.ctrl-btn {
+  font-variant-numeric: tabular-nums;
+}
 
 .app-shell {
   min-height: 100vh;
@@ -86,7 +104,6 @@ h1 {
   font-weight: 600;
   color: #1f452b;
   cursor: pointer;
-  outline: none;
 }
 
 .info-btn {
@@ -139,7 +156,7 @@ h1 {
   padding: 8px 24px;
   border-radius: 48px;
   cursor: pointer;
-  transition: 0.2s;
+  transition: background-color 0.2s, transform 0.2s;
   font-family: inherit;
 }
 .ctrl-btn:hover { background: #1f452b; transform: scale(0.98); }
@@ -179,9 +196,17 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   margin-bottom: 0.8rem;
   gap: 12px;
   cursor: pointer;
-  transition: opacity 0.2s, background 0.1s;
+  transition: opacity 0.2s, background-color 0.1s;
   padding: 6px 10px;
   border-radius: 40px;
+  /* 图例项实为 button（键盘可操作），重置默认外观 */
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  width: 100%;
+  color: inherit;
 }
 .legend-item:hover { background-color: #f0f7ec; }
 .legend-item.hidden { opacity: 0.5; }
@@ -213,12 +238,13 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   white-space: nowrap;
 }
 .note {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: #5b6e53;
   margin-top: 10px;
   text-align: center;
   border-top: 1px solid #e2e9db;
   padding-top: 8px;
+  line-height: 1.5;
 }
 
 /* ========================= 扰动 ========================= */
@@ -264,7 +290,7 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   font-family: inherit;
   flex: 1;
   min-width: 60px;
-  transition: 0.1s;
+  transition: background-color 0.1s, transform 0.1s;
 }
 .disturb-btn:hover { background: #b3cf99; transform: translateY(-1px); }
 
@@ -281,6 +307,8 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   justify-content: center;
   align-items: center;
   backdrop-filter: blur(2px);
+  /* 弹窗内容滚动到底后不连带背景滚动 */
+  overscroll-behavior: contain;
 }
 .modal-content {
   background: white;
@@ -290,6 +318,10 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   overflow: hidden;
   box-shadow: 0 25px 40px rgba(0,0,0,0.25);
   border-top: 8px solid #8bc34a;
+}
+/* 弹窗容器被 useModalBehavior 编程聚焦（tabindex=-1），不显示焦点描边 */
+.modal-content:focus {
+  outline: none;
 }
 #infoModal .modal-content {
   max-width: 480px;
@@ -352,7 +384,7 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   font-weight: bold;
   cursor: pointer;
   margin-top: 0.5rem;
-  transition: 0.15s;
+  transition: background-color 0.15s, transform 0.15s;
 }
 .close-modal:hover { background: #1f452b; transform: scale(0.97); }
 
@@ -399,7 +431,7 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   color: rgba(44, 94, 58, 0.4);
   opacity: 0.6;
   cursor: pointer;
-  transition: 0.15s;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
   flex-shrink: 0;
 }
 .github-link:hover {
@@ -430,7 +462,7 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   font-size: 0.9rem;
   cursor: pointer;
   font-family: inherit;
-  transition: 0.15s;
+  transition: background-color 0.15s, color 0.15s;
 }
 .lang-opt.active {
   background: #2c5e3a;
@@ -461,7 +493,7 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   font-size: 1.8rem;
   cursor: pointer;
   color: #6f8f6a;
-  transition: 0.1s;
+  transition: color 0.1s, transform 0.1s;
 }
 .close-modal-x:hover { color: #2c5e3a; transform: scale(1.1); }
 .modal-body { padding: 1.2rem 1.8rem; overflow-y: auto; flex: 1; }
@@ -515,7 +547,7 @@ input[type="number"] {
   font-weight: bold;
   cursor: pointer;
   color: #2c5e3a;
-  transition: 0.1s;
+  transition: background-color 0.1s;
 }
 .param-reset:hover { background: #c8e0bb; }
 .modal-footer {
@@ -534,7 +566,7 @@ input[type="number"] {
   border: none;
   cursor: pointer;
   font-family: inherit;
-  transition: 0.1s;
+  transition: background-color 0.1s;
 }
 .modal-btn.primary { background: #2c5e3a; color: white; }
 .modal-btn.primary:hover { background: #1f452b; }
@@ -572,7 +604,7 @@ input[type="number"] {
   justify-content: center;
   gap: 8px;
   font-size: 0.95rem;
-  transition: 0.2s;
+  transition: background-color 0.2s;
 }
 .ai-drawer-toggle:hover { background: #1f452b; }
 .ai-drawer.collapsed .ai-drawer-toggle { writing-mode: vertical-rl; padding: 14px 8px; }
@@ -681,7 +713,6 @@ input[type="number"] {
   font-family: inherit;
   font-size: 0.9rem;
   max-height: 120px;
-  outline: none;
   background: white;
 }
 .ai-input-row textarea:focus { border-color: #8bc34a; }
@@ -697,9 +728,13 @@ input[type="number"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: 0.15s;
+  transition: background-color 0.15s, transform 0.15s;
   align-self: flex-end;
 }
+.ai-send-btn svg { width: 18px; height: 18px; }
+/* 流式回复期间的停止按钮：与发送同位，暖色提示中断动作 */
+.ai-send-btn.stop { background: #b35e4a; }
+.ai-send-btn.stop:hover:not(:disabled) { background: #9c4d3b; transform: none; }
 .ai-send-btn:hover:not(:disabled) { background: #1f452b; transform: scale(1.05); }
 .ai-send-btn:disabled { background: #b1cfb0; cursor: not-allowed; }
 
@@ -808,7 +843,8 @@ input[type="number"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: 0.15s;
+  transition: background-color 0.15s, transform 0.15s;
+  flex-shrink: 0;
 }
 
 .remove-btn:hover {
@@ -872,7 +908,7 @@ input[type="number"] {
   cursor: pointer;
   font-size: 0.9rem;
   font-weight: 500;
-  transition: 0.2s;
+  transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
 }
 
 .mode-toggle-btn:hover {
@@ -944,9 +980,129 @@ input[type="number"] {
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  transition: 0.2s;
+  transition: background-color 0.2s;
 }
 
 .error-boundary-btn:hover {
   background: #1b5e20;
+}
+
+/* ===== 260827 交互修复新增 ===== */
+
+/* Suspense 聊天加载占位 */
+.chat-fallback {
+  flex: 0 0 360px;
+  min-width: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6c8b66;
+  font-size: 0.9rem;
+  background: #fefef5;
+  border-radius: 1.5rem;
+  border: 1px dashed #cbdcc2;
+  min-height: 200px;
+}
+
+/* 抽屉头：标题 + 状态 + 清空按钮 */
+.ai-drawer-header {
+  gap: 0.5rem;
+}
+.ai-drawer-status { margin-left: auto; }
+.ai-drawer-clear {
+  background: transparent;
+  border: 1px solid #cbdcc2;
+  color: #3a5e3f;
+  border-radius: 40px;
+  padding: 3px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+.ai-drawer-clear:hover:not(:disabled) { background: #eaf5e5; }
+.ai-drawer-clear:disabled { opacity: 0.4; cursor: not-allowed; }
+/* 待确认态：红底提示「确认清空？」 */
+.ai-drawer-clear.armed {
+  background: #f5e6e2;
+  border-color: #e6b8ad;
+  color: #b35e4a;
+}
+
+/* 请求失败恢复条 */
+.ai-error-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f5e6e2;
+  color: #b35e4a;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #e6b8ad;
+}
+.ai-retry-btn {
+  background: #b35e4a;
+  color: white;
+  border: none;
+  border-radius: 40px;
+  padding: 3px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+.ai-retry-btn:hover { background: #9c4d3b; }
+
+/* 空状态：能力清单 + 可点击示例 */
+.ai-empty-intro { font-weight: 600; color: #2c4b32; }
+.ai-empty-list {
+  list-style: none;
+  margin: 0.6rem 0;
+  padding: 0;
+  text-align: left;
+  display: inline-block;
+}
+.ai-empty-list li {
+  margin: 0.25rem 0;
+}
+.ai-empty-list li::before {
+  content: "·";
+  margin-right: 0.5rem;
+  font-weight: 700;
+}
+.ai-empty-try { margin-top: 0.6rem; }
+.ai-empty-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  align-items: center;
+}
+.ai-sample-chip {
+  background: #eaf5e5;
+  border: 1px solid #b3cf99;
+  color: #2c5e3a;
+  border-radius: 40px;
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.ai-sample-chip:hover { background: #d8ead0; border-color: #8bc34a; }
+
+/* 动效克制：尊重系统「减少动态效果」偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

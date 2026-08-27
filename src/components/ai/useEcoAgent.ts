@@ -13,6 +13,10 @@ export interface UseEcoAgent {
   isStreaming: boolean;
   sendMessage: (text: string) => void;
   clearHistory: () => void;
+  /** 中断正在进行的流式回复（停止按钮用） */
+  stop: () => void;
+  /** 重试上一条用户消息（请求出错时提供恢复入口） */
+  regenerate: () => void;
 }
 
 /**
@@ -194,5 +198,7 @@ export function useEcoAgent(
     isStreaming: chat.status === "submitted" || chat.status === "streaming",
     sendMessage: send,
     clearHistory: () => chat.setMessages([]),
+    stop: () => chat.stop(),
+    regenerate: () => chat.regenerate(),
   };
 }

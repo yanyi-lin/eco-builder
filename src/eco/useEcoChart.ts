@@ -5,7 +5,7 @@ import {
   type ChartData,
   type ChartDataset,
 } from "chart.js/auto";
-import type { EcoModelSpec } from "./types";
+import type { DisturbanceEvent, EcoModelSpec } from "./types";
 import { displayName } from "./i18n";
 import { useI18n } from "../i18n/LanguageProvider";
 
@@ -21,6 +21,7 @@ export interface UseEcoChart {
   setData: (
     history: Record<string, number[]>,
     timeData: number[],
+    disturbances: DisturbanceEvent[],
   ) => void;
   /** 重置所有曲线可见性 */
   resetDatasetsVisibility: () => void;
@@ -39,6 +40,7 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
   const lastDataRef = useRef<{
     history: Record<string, number[]>;
     timeData: number[];
+    disturbances: DisturbanceEvent[];
   } | null>(null);
   // 渲染合并/节流：同一帧内多次 setData 只渲染一次；距上次渲染 < RENDER_INTERVAL_MS
   // 则推迟（修复 rAF Violation：38ms 步进 + 全量重绘导致 rAF 队列堆积）
@@ -86,6 +88,44 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
     });
   };
 
+  /** 扰动标注插件：在每个扰动事件的时间点绘制物种色虚线 + 顶部幅度标签，
+   *  服务教学叙事「扰动 → 恢复力」，让学生能对照曲线解读恢复过程。
+   *  已滚出采样窗口（MAX_DATA_POINTS）的扰动自动跳过。 */
+  const disturbancePlugin = {
+    id: "disturbanceMarkers",
+    afterDatasetsDraw(chart: Chart<"line">) {
+      const cached = lastDataRef.current;
+      if (!cached || cached.disturbances.length === 0 || cached.timeData.length === 0) return;
+      const { ctx, chartArea } = chart;
+      const xScale = chart.scales.x;
+      if (!xScale || !chartArea) return;
+      ctx.save();
+      for (const ev of cached.disturbances) {
+        if (ev.time < cached.timeData[0]) continue; // 已滚出窗口
+        const idx = cached.timeData.findIndex((tv) => tv >= ev.time);
+        if (idx < 0) continue;
+        const sp = specRef.current.species.find((s) => s.id === ev.speciesId);
+        if (!sp) continue;
+        const x = xScale.getPixelForValue(idx);
+        if (x < chartArea.left || x > chartArea.right) continue;
+        ctx.beginPath();
+        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = sp.color;
+        ctx.lineWidth = 1.5;
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = "600 10px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = sp.color;
+        ctx.fillText(`-${Math.round(ev.percent * 100)}%`, x, chartArea.top + 2);
+      }
+      ctx.restore();
+    },
+  };
+
   /** 创建图表实例。
    *  若 canvas 上已注册 Chart 实例（StrictMode 重挂载残留），先销毁它再创建，
    *  避免 "Canvas is already in use"。仅检查 canvas 本身的注册，不动 chartRef。 */
@@ -106,12 +146,13 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
 
     const config: ChartConfiguration<"line"> = {
       type: "line",
+      // 注册扰动标注插件（局部插件，仅作用于本图表实例）
+      plugins: [disturbancePlugin],
       data: {
         labels: ["0"],
         datasets: buildDatasets(currentSpec),
       } as ChartData<"line">,
-      options: {
-        responsive: true,
+      options: {        responsive: true,
         maintainAspectRatio: true,
         interaction: { mode: "index", intersect: false },
         plugins: {
@@ -215,9 +256,10 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
   const setData = (
     history: Record<string, number[]>,
     timeData: number[],
+    disturbances: DisturbanceEvent[],
   ) => {
     // 缓存数据，供建图后回填
-    lastDataRef.current = { history, timeData };
+    lastDataRef.current = { history, timeData, disturbances };
     const chart = chartRef.current;
     if (!chart) return; // 图表未就绪时跳过（建图后会从缓存回填）
     const currentSpec = specRef.current;

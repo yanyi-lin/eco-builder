@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  DisturbanceEvent,
   EcoModelSpec,
   EcoParams,
   Populations,
@@ -33,6 +34,8 @@ export interface UseEcoSimulation {
   resumeSimulation: () => void;
   fullReset: () => void;
   applyDisturbance: (speciesId: string, percent: number) => void;
+  /** 扰动事件记录（图表标注用），fullReset/applyParams/spec 切换时清空 */
+  disturbances: DisturbanceEvent[];
   /** 部分更新种群数量（AI 工具用），自动 clamp 到最小阈值 */
   setPopulation: (vals: Partial<Record<string, number>>) => SetPopulationResult;
   /** 应用 Eco-Tuner 修改后的参数并重置 */
@@ -78,6 +81,8 @@ export function useEcoSimulation(spec: EcoModelSpec): UseEcoSimulation {
   const [timeData, setTimeData] = useState<number[]>([0]);
   const [simulationRunning, setSimulationRunning] = useState(false);
   const [simulationActive, setSimulationActive] = useState(false);
+  /** 扰动事件记录：与模拟时间绑定，供图表绘制扰动标注线 */
+  const [disturbances, setDisturbances] = useState<DisturbanceEvent[]>([]);
 
   const timerId = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -161,12 +166,18 @@ export function useEcoSimulation(spec: EcoModelSpec): UseEcoSimulation {
     setTimeData([0]);
     setSimulationRunning(false);
     setSimulationActive(false);
+    setDisturbances([]);
   }, [clearTimer, spec]);
 
   const applyDisturbance = useCallback(
     (speciesId: string, percent: number) => {
       const s = spec.species.find((x) => x.id === speciesId);
       if (!s) return;
+      // 记录扰动事件（当前模拟时间），供图表标注
+      setDisturbances((prev) => [
+        ...prev,
+        { time: stateRef.current.currentTime, speciesId, percent },
+      ]);
       setPopulations((prev) => {
         const cur = prev[speciesId] ?? 0;
         let newVal = cur * (1 - percent);
@@ -251,6 +262,7 @@ export function useEcoSimulation(spec: EcoModelSpec): UseEcoSimulation {
       setTimeData([0]);
       setSimulationRunning(false);
       setSimulationActive(false);
+      setDisturbances([]);
     },
     [clearTimer, spec],
   );
@@ -275,6 +287,7 @@ export function useEcoSimulation(spec: EcoModelSpec): UseEcoSimulation {
     clearTimer();
     setSimulationRunning(false);
     setSimulationActive(false);
+    setDisturbances([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spec.id]);
 
@@ -297,6 +310,7 @@ export function useEcoSimulation(spec: EcoModelSpec): UseEcoSimulation {
       resumeSimulation,
       fullReset,
       applyDisturbance,
+      disturbances,
       setPopulation,
       applyParams,
       getSnapshot,
@@ -316,6 +330,7 @@ export function useEcoSimulation(spec: EcoModelSpec): UseEcoSimulation {
       resumeSimulation,
       fullReset,
       applyDisturbance,
+      disturbances,
       setPopulation,
       applyParams,
       getSnapshot,

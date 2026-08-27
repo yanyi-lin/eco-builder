@@ -129,6 +129,16 @@ export interface EcoModelSpec {
 /** 运行时参数（可被 Eco-Tuner 修改） */
 export type EcoParams = Record<string, number>;
 
+/** 扰动事件记录（用于图表标注扰动时刻，服务教学叙事「扰动 → 恢复力」） */
+export interface DisturbanceEvent {
+  /** 扰动发生时的模拟时间 */
+  time: number;
+  /** 被扰动的物种 id */
+  speciesId: string;
+  /** 减少的比例（0-1） */
+  percent: number;
+}
+
 /** 种群数量快照：speciesId -> 数量 */
 export type Populations = Record<string, number>;
 
