@@ -1,7 +1,19 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach, beforeEach } from "vitest";
 import { createApp } from "../server/app";
 import { handleChatRequest, loadChatEnv, type ChatEnv } from "../server/chat";
-import { __resetForTests, __setNowForTests, DAILY_REQUEST_LIMIT } from "../server/rateLimit";
+
+/** 构造带自定义 MAX_OUTPUT_TOKENS 的 env（协议层测试用） */
+function envWithMaxTokens(n: number): ChatEnv {
+  return { ...TEST_ENV, MAX_OUTPUT_TOKENS: n };
+}
+import {
+  __resetForTests,
+  __setNowForTests,
+  DAILY_REQUEST_LIMIT,
+  __resetIpLimiterForTests,
+  recordIpHit,
+  IP_WINDOW_LIMIT,
+} from "../server/rateLimit";
 import { createAdaptorServer } from "@hono/node-server";
 import type { Hono } from "hono";
 import type { Server } from "node:http";
@@ -257,6 +269,21 @@ describe("handleChatRequest 协议", () => {
     const body = getBody() as { messages: { role: string; content?: string }[] };
     expect(String(body.messages[0].content)).toContain("模拟模式");
   });
+  it("maxOutputTokens 传递到 LLM 请求体（成本护栏）", async () => {
+    const getBody = mockLLM(textChunks("好的"));
+    const res = await handleChatRequest(
+      [userMsg("你好")],
+      undefined,
+      envWithMaxTokens(1234),
+    );
+    await collectUIStream(res);
+    const body = getBody() as { max_tokens?: number };
+    expect(body.max_tokens).toBe(1234);
+  });
+
+  it("默认 env 的 MAX_OUTPUT_TOKENS 为 4096", () => {
+    expect(loadChatEnv({ OPENAI_BASE_URL: "x", OPENAI_API_KEY: "x", OPENAI_MODEL: "x" }).MAX_OUTPUT_TOKENS).toBe(4096);
+  });
 });
 
 // ============================================================
@@ -337,7 +364,47 @@ describe("createApp HTTP 层", () => {
       body: JSON.stringify({ messages: [userMsg("hi")] }),
     });
     expect(res.status).toBe(429);
+    expect(res.headers.get("retry-after")).toBeTruthy();
     __setNowForTests(null);
+  });
+
+  it("超过 per-IP 窗口上限返回 429 且带 Retry-After", async () => {
+    __resetForTests();
+    __resetIpLimiterForTests();
+    // 用 XFF 模拟反代注入的客户端 IP（与 resolveClientIp 的生产信任链一致）
+    for (let i = 0; i < IP_WINDOW_LIMIT; i++) recordIpHit("203.0.113.7");
+    const res = await fetch(`${base}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-For": "203.0.113.7" },
+      body: JSON.stringify({ messages: [userMsg("hi")] }),
+    });
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0);
+  });
+
+  it("messages 超过条数上限返回 400", async () => {
+    __resetForTests();
+    __resetIpLimiterForTests();
+    const many = Array.from({ length: 41 }, (_, i) => userMsg(`msg ${i}`));
+    const res = await fetch(`${base}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: many }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: /条数超限/ });
+  });
+
+  it("单条消息超长返回 400", async () => {
+    __resetForTests();
+    __resetIpLimiterForTests();
+    const res = await fetch(`${base}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [userMsg("x".repeat(9000))] }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: /过长/ });
   });
 });
 

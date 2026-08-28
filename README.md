@@ -110,7 +110,7 @@ npx wrangler deploy                       # 绑定自定义域名后在 CF 面�
 
 - 环境变量：`OPENAI_BASE_URL` / `OPENAI_MODEL` / `BUILD_MAX_STEPS` 在 `wrangler.jsonc` 的 `vars`（明文）；`OPENAI_API_KEY` 必须用 **Secret**（加密，`secrets.required` 会在 deploy 时强校验）。
 - **步数上限**：CF 免费档单请求 50 子请求，`BUILD_MAX_STEPS` 默认 60（宝塔不受限）；CF 部署在 `wrangler.jsonc` vars 已设 **40**，避免撞墙。宝塔端不设置即用默认 60。
-- **限流说明**：每日 20k 请求上限为进程内存计数。CF Workers 多 isolate 环境下为 **per-isolate 近似值**（非全局精确），教学场景可接受；需要精确全局计数需引入 Durable Object（需要CF依赖，git历史版本中有，有需要的可以自己去翻）。
+- **限流说明**：三层防线，全部进程内存计数。① 请求 body ≤ 256KB、messages ≤ 40 条、单条 ≤ 8000 字符（超限 400/413）；② per-IP 滑动窗口 60 次/小时 + 并发 ≤ 4（超限 429 带 `Retry-After`；额度按工具 auto-continuation 每轮一计——一次完整构建会话约 10-15 轮，60 次 ≈ 4-5 次完整构建，校园机房 NAT 共享出口 IP 也已留余量）；③ 全局每日 20k 请求上限（兜底）。客户端 IP 取 `CF-Connecting-IP` / `X-Real-IP` / `X-Forwarded-For` 首跳 / Node socket 直连，前两层头须由前置代理覆写（宝塔 nginx / CF 均满足）。CF Workers 多 isolate 环境下均为 **per-isolate 近似值**（非全局精确），教学场景可接受；需要精确全局计数需引入 Durable Object（需要CF依赖，git历史版本中有，有需要的可以自己去翻）。
 
 ### 大模型选择
 
@@ -133,6 +133,7 @@ npx wrangler deploy                       # 绑定自定义域名后在 CF 面�
 | `PORT`               | Node 服务监听端口（默认 3000；CF 部署无需）                     | `3000`                     |
 | `BUILD_MAX_STEPS`    | 构建模式单轮步数上限（默认 60；CF 建议 40）                       | `40`                       |
 | `SIMULATE_MAX_STEPS` | 模拟模式单轮步数上限（默认 20）                                | `20`                       |
+| `MAX_OUTPUT_TOKENS`  | 单次响应输出 token 上限（默认 4096；成本护栏）                    | `4096`                     |
 
 - 本地开发：复制 `.env.example` 为 `.env` 填写（`.env` 已被 gitignore）。
 - 宝塔部署：写在 `ecosystem.config.cjs` 的 `env` 段（或面板"环境变量"栏）。
