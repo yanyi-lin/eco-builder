@@ -191,8 +191,10 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
             },
             min: left.min,
             max: left.max,
-            // 记录纸网格：暖褐淡色（与 x 轴一致）
+            // 记录纸网格：暖褐淡色（与 x 轴一致）；轴线用主物种色，
+            // 与图例组头/曲线同色，传达「物种 ↔ 轴」对应
             grid: { color: "rgba(107, 79, 58, 0.10)" },
+            border: { color: left.color },
             ticks: { stepSize: left.step, color: left.color },
           },
           "y-prey": {
@@ -207,6 +209,8 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
             min: right.min,
             max: right.max,
             grid: { drawOnChartArea: false },
+            // 右轴线同右轴主物种色（与左轴呼应）
+            border: { color: right.color },
             ticks: { stepSize: right.step, color: right.color },
           },
         },

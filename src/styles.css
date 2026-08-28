@@ -274,6 +274,27 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   max-width: min(72%, 420px);
 }
 
+/* 单个轴分组：组头（左轴/右轴）+ 该轴的 chips 同行（组头左、chips 右），
+   chips 多时在右列内换行 */
+.legend-axis-group {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0 10px;
+}
+
+/* 组头：文字色内联自该轴主物种色（与轴线/曲线呼应），
+   左侧短竖条强化「轴」的意象 */
+.axis-group-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  border-left: 3px solid currentColor;
+  padding-left: 6px;
+  white-space: nowrap;
+}
+
 .legend-chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -281,7 +302,7 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   gap: 4px;
 }
 
-/* 单枚图例 chip：色点 + 名 + 实时数量 + 轴徽章 */
+/* 单枚图例 chip：色点 + 名 + 实时数量 */
 .legend-chip {
   display: inline-flex;
   align-items: center;
@@ -327,18 +348,6 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   color: var(--ink-soft);
   min-width: 2.2em;
   text-align: right;
-}
-.chip-axis {
-  font-family: var(--font-body);
-  font-size: 0.66rem;
-  font-weight: 700;
-  color: var(--bark);
-  background: var(--moss-wash);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-pill);
-  padding: 0 6px;
-  line-height: 1.5;
-  flex-shrink: 0;
 }
 
 /* 多物种（>4）模式：图例退为图表上方文档流，限高内滚动，
@@ -928,8 +937,8 @@ input[type="number"] {
   .param-row { gap: 8px; }
   .info-title { font-size: 1.5rem; }
   .author-names { gap: 1rem; font-size: 1rem; }
-  /* 图例 chips 在窄屏收敛：隐藏数量与轴徽章，保留色点+名 */
-  .chip-count, .chip-axis { display: none; }
+  /* 图例 chips 在窄屏收敛：隐藏数量，保留色点+名 */
+  .chip-count { display: none; }
   .chip-name { max-width: 7em; font-size: 0.75rem; }
   /* 窄屏图例从浮层退化为文档流（置于图表上方），避免遮挡曲线 */
   .legend-chips {

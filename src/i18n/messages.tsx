@@ -47,12 +47,9 @@ export const messages = {
       "点击后即时减少当前种群对应百分比（不低于最小阈值），系统自动调节展现恢复力与周期性",
 
     // === CustomLegend 图例 ===
-    "legend.title": "图例",
     "legend.iconAlt": "图标",
     "legend.leftAxis": "左轴",
     "legend.rightAxis": "右轴",
-    "legend.axisLeftShort": "左",
-    "legend.axisRightShort": "右",
 
     // === BuilderPanel 构建面板 ===
     "builder.species": "物种",
@@ -193,12 +190,9 @@ export const messages = {
     "disturb.note":
       "Instantly reduces the population by the selected percentage (not below the minimum threshold); the system self-regulates to show resilience and periodicity",
 
-    "legend.title": "Legend",
     "legend.iconAlt": "icon",
     "legend.leftAxis": "Left axis",
     "legend.rightAxis": "Right axis",
-    "legend.axisLeftShort": "L",
-    "legend.axisRightShort": "R",
 
     "builder.species": "Species",
     "builder.relations": "Relations",
