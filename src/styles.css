@@ -25,10 +25,10 @@
   --line-soft: #e7efe2;
   --moss-wash: #eef6ec;
   --site-bg: #eef4ec;
-  /* 全站单一字体：系统黑体栈（中文 PingFang/微软雅黑，英文 system-ui）。
-     原 display（宋体标题）/mono（等宽数字）双栈已按需求统一收敛到本 token */
-  --font-body: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
-    'Roboto', system-ui, sans-serif;
+  /* 全站单一字体：系统默认 UI 字体（各平台自动匹配：macOS 苹方 /
+     Windows 雅黑 / Android Roboto）。sans-serif 仅作极端环境兜底，
+     避免退化成浏览器衬线默认体 */
+  --font-body: system-ui, sans-serif;
   --r-lg: 1.2rem;
   --r-md: 0.8rem;
   --r-pill: 999px;
