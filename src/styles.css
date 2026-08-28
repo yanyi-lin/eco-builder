@@ -400,6 +400,24 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   backdrop-filter: blur(3px);
 }
 
+/* 多物种（>4）模式：图例退为图表上方文档流，限高内滚动，
+   图表绘图区保持完整可见（实测 10 物种浮层会遮挡 47%） */
+.legend-chips.stacked {
+  position: static;
+  max-width: none;
+  margin: 2px 6px 8px;
+  max-height: 108px;
+  overflow-y: auto;
+  /* 内滚动区与页面滚轮隔离时保留惯性：细滚动条样式 */
+  scrollbar-width: thin;
+}
+.legend-chips.stacked .legend-chip-row { justify-content: flex-start; }
+.legend-chips.stacked .legend-note { text-align: left; }
+/* 文档流模式下 chart-container 无需浮层避让留白 */
+.legend-chips.stacked ~ .chart-container { padding-top: 0; }
+/* 卡内样方标签与文档流图例首行重叠（左上角），且顶栏站牌已有同信息，隐藏 */
+.chart-card:has(.legend-chips.stacked) .plot-tag-inline { display: none; }
+
 .note {
   font-size: 0.8rem;
   color: var(--ink-soft);

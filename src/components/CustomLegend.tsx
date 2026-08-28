@@ -33,8 +33,12 @@ export function CustomLegend({ spec, hiddenStates, onToggle, counts }: CustomLeg
     )
     .replace("{n}", String(MAX_DATA_POINTS));
 
+  // 物种较多（>4）时图例从浮层转为图表上方文档流（限高内滚动），
+  // 避免浮层大面积遮挡曲线（10 物种实测遮挡绘图区 47%）
+  const stacked = spec.species.length > 4;
+
   return (
-    <div className="legend-chips">
+    <div className={`legend-chips${stacked ? " stacked" : ""}`}>
       <div
         className="legend-chip-row"
         role="group"
