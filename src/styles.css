@@ -302,11 +302,15 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   gap: 4px;
 }
 
-/* 单枚图例 chip：色点 + 名 + 实时数量 */
+/* 单枚图例 chip：色点 + 名 + 实时数量。
+   nowrap + 禁收缩：列宽不足时 chip 整体换到下一行，
+   避免内部内容破碎（数量/图标掉行被裁，en 长名实测） */
 .legend-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
   border: 1px solid var(--line-soft);
   background: var(--paper-glass);
   border-radius: var(--r-pill);
@@ -542,6 +546,12 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
 }
 .info-desc p { margin: 0.4rem 0; line-height: 1.45; color: var(--ink); }
 .info-desc strong { color: var(--canopy-deep); }
+/* 主体描述与作者区之间的分隔线（对应弹窗文案中的 ----） */
+.info-divider {
+  border: none;
+  border-top: 1px solid var(--line-soft);
+  margin: 0.2rem 0 0.4rem;
+}
 .info-authors {
   margin: 1.2rem 0 1.5rem;
   padding: 0.5rem;

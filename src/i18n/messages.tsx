@@ -76,24 +76,9 @@ export const messages = {
     "tuner.closeAria": "关闭调参窗口",
 
     // === InfoModal / Credits ===
-    "info.title": "生态学演示器",
-    "info.textbookTitle": "教材依据",
-    "info.textbookContent": (
-      <>
-        普通高中教科书 · 生物学选择性必修2
-        <br />
-        《生物与环境》
-      </>
-    ),
+    "info.title": "生态模型构建器",
     "info.purpose": "智能体协助的生态系统构建工具",
-    "info.assistantTitle": "智能体助手",
-    "info.assistantDesc": (
-      <>
-        助手抽屉支持自然语言控制模拟与构建模型：
-        <br />
-        读取/设置种群、启停/重置，或构建森林等任意生态模型
-      </>
-    ),
+    "info.tagline": "使用自然语言构建和模拟生态系统",
     "info.authorsLabel": "制作者",
     "info.authorsName": "林炎逸",
     "info.close": "关闭",
@@ -216,24 +201,9 @@ export const messages = {
     "tuner.apply": "Apply & reset simulation",
     "tuner.closeAria": "Close tuner",
 
-    "info.title": "Ecology Demonstrator",
-    "info.textbookTitle": "Based on textbook",
-    "info.textbookContent": (
-      <>
-        High school textbook · Biology Selective Compulsory 2
-        <br />
-        Organisms and Environment
-      </>
-    ),
-    "info.purpose": "AI-assisted ecosystem builder",
-    "info.assistantTitle": "AI Assistant",
-    "info.assistantDesc": (
-      <>
-        The AI drawer lets you control simulation and build models in natural language:
-        <br />
-        read/set populations, start/pause/reset, or build any ecosystem model (e.g. a forest).
-      </>
-    ),
+    "info.title": "eco-builder",
+    "info.purpose": "an agentic eco-system building tool",
+    "info.tagline": "build and simulate ecosystems with the help of an ai agent",
     "info.authorsLabel": "Author",
     "info.authorsName": "Yanyi Lin",
     "info.close": "Close",

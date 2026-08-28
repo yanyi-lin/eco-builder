@@ -41,18 +41,13 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
         >
           <h2 className="info-title" id="infoModalTitle">{t("info.title")}</h2>
           <div className="info-desc">
-            <p>
-              <strong>{t("info.textbookTitle")}</strong>
+            <p className="info-purpose">
+              <strong>{t("info.purpose")}</strong>
               <br />
-              {t("info.textbookContent")}
-            </p>
-            <p>{t("info.purpose")}</p>
-            <p>
-              <strong>{t("info.assistantTitle")}</strong>
-              <br />
-              {t("info.assistantDesc")}
+              {t("info.tagline")}
             </p>
           </div>
+          <hr className="info-divider" />
           <div className="info-authors">
             <div className="authors-label">{t("info.authorsLabel")}</div>
             <div className="author-names">
