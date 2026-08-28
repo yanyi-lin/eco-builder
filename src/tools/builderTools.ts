@@ -130,15 +130,36 @@ export async function searchSpecies(query: string): Promise<{
     }
     const data = await response.json();
     
-    // 检查匹配结果
     if (data.matchType === "NONE") {
-      return { 
-        matches: [], 
-        error: `GBIF 未找到 "${query}"。GBIF 不支持中文名，请提供拉丁学名（如 "Vulpes vulpes"）` 
+      return {
+        matches: [],
+        error: `GBIF 未找到 "${query}"。GBIF 不支持中文名，请提供拉丁学名（如 "Vulpes vulpes"）`
       };
     }
-    
-    return { matches: [data] };
+    // 字段白名单（SEC-02 间接注入面收敛）：GBIF 原始响应含 20 个字段，且任何字段
+    // 理论上可携带异常内容。只透传 LLM 需要的分类学事实字段，其余（内部 key、
+    // notes/issues 等自由文本）不进入模型上下文。
+    const d = data as Record<string, unknown>;
+    const pickStr = (k: string): string => (typeof d[k] === "string" ? (d[k] as string) : "");
+    const pickNum = (k: string): number => (typeof d[k] === "number" ? (d[k] as number) : 0);
+    return {
+      matches: [{
+        usageKey: pickNum("usageKey"),
+        scientificName: pickStr("scientificName"),
+        canonicalName: pickStr("canonicalName"),
+        rank: pickStr("rank"),
+        status: pickStr("status"),
+        confidence: pickNum("confidence"),
+        matchType: pickStr("matchType"),
+        kingdom: pickStr("kingdom"),
+        phylum: pickStr("phylum"),
+        class: pickStr("class"),
+        order: pickStr("order"),
+        family: pickStr("family"),
+        genus: pickStr("genus"),
+        species: pickStr("species"),
+      }],
+    };
   } catch (err) {
     return { matches: [], error: `请求失败: ${err}` };
   }
