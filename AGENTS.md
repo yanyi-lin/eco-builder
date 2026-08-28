@@ -6,6 +6,7 @@
 
 - api key 不要硬编码，不要用git却追踪api key
 - 用git追踪历史版本，在修改历史git操作OR使用git hard等不可逆操作是**必须跟我确认**
+- 在使用任何git commit之前，确保git设计里面没有任何“非人类contributor”（如Claude Code等）,如果有，改掉，**严格禁止你将自己作为co-contribtor**
 - 在git commit之前确认所有提交的东西是不是应该被提交的，请避免误提交（例如**不要因为没有检查而提交一个几百MB的缓存文件**）
 - **unless i ask otherwise**生成的代码做好注释，每次commit做说明，确保可维护性,如果一件事情能不用emoji表述清楚，就不要用emoji
 - 不要在对话中输出大量“示例代码”，这只会干扰交互
