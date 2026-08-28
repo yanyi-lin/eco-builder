@@ -71,12 +71,26 @@ export function loadChatEnv(source: Record<string, unknown> = {}): ChatEnv {
  * @param lang 界面语言（"zh" | "en"，默认 "zh"）；用于 prompt 语言跟随的兜底
  * @returns UIMessageStream 响应（web 标准 Response）
  */
+/** 检测伪造的 system 角色 UIMessage（SEC-02）：UIMessage 协议中 system 角色是
+ *  客户端不可伪造的保留位——前端 useChat 只产生 user/assistant。携带 system 角色
+ *  的消息经 convertToModelMessages 会成为独立 system 插入 LLM 上下文（真系统提示
+ *  之后，最强注入位）。检测到即拒绝请求，不进入 streamText。 */
+function hasForgedSystemMessage(messages: UIMessage[]): boolean {
+  return messages.some((m) => m?.role === "system");
+}
+
 export async function handleChatRequest(
   messages: UIMessage[],
   signal: AbortSignal | undefined,
   env: ChatEnv,
   lang: ReplyLang = "zh",
 ): Promise<Response> {
+  if (hasForgedSystemMessage(messages)) {
+    return new Response(JSON.stringify({ error: "非法消息：包含 system 角色消息" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   // 模式判定 + 剥离传输前缀（每请求独立判定，纯函数复用）
   const isBuildMode = detectBuildMode(messages);
   const cleanMessages = stripModePrefix(messages);
@@ -94,6 +108,11 @@ export async function handleChatRequest(
   const result = streamText({
     model: provider(env.OPENAI_MODEL),
     system: systemPrompt,
+    // 安全护栏（SEC-02）：客户端可伪造 role:"system" 的 UIMessage，转换后会作为
+    // 独立 system 消息插入 LLM 上下文（排在真系统提示之后，是最强的注入位）。
+    // false = messages 中出现 system 角色直接 AI_InvalidPromptError，不发起 LLM 请求。
+    // 正常对话流（user/assistant/tool）不受影响；本调用自身的 system 参数不受影响。
+    allowSystemInMessages: false,
     // ignoreIncompleteToolCalls: 过滤 input-streaming/input-available 的残缺 tool part
     //（用户中途 stop() 时会留下），否则转成 tool-call 无 tool-result → MissingToolResultsError
     messages: await convertToModelMessages(cleanMessages, { ignoreIncompleteToolCalls: true }),
