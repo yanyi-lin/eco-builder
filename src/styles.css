@@ -25,10 +25,10 @@
   --line-soft: #e7efe2;
   --moss-wash: #eef6ec;
   --site-bg: #eef4ec;
-  --font-display: 'Songti SC', 'Noto Serif CJK SC', 'SimSun', Georgia, serif;
+  /* 全站单一字体：系统黑体栈（中文 PingFang/微软雅黑，英文 system-ui）。
+     原 display（宋体标题）/mono（等宽数字）双栈已按需求统一收敛到本 token */
   --font-body: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
     'Roboto', system-ui, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace;
   --r-lg: 1.2rem;
   --r-md: 0.8rem;
   --r-pill: 999px;
@@ -113,7 +113,7 @@ button {
 
 /* 样方标签：图鉴编号，衬线小字距，博物学记录纸气质 */
 .plot-tag {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -127,7 +127,7 @@ button {
 }
 
 .site-title {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 1.9rem;
   font-weight: 700;
   margin: 0;
@@ -259,7 +259,7 @@ button {
 /* 走带控制条上的时间读数：mono 数值，投影全班可见 */
 .time-readout {
   margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 1rem;
   color: var(--bark);
   font-variant-numeric: tabular-nums;
@@ -285,7 +285,7 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   top: 14px;
   left: 18px;
   z-index: 2;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -367,7 +367,7 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   white-space: nowrap;
 }
 .chip-count {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-variant-numeric: tabular-nums;
   font-size: 0.78rem;
   color: var(--ink-soft);
@@ -375,7 +375,7 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   text-align: right;
 }
 .chip-axis {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.66rem;
   font-weight: 700;
   color: var(--bark);
@@ -776,7 +776,7 @@ input[type="number"] {
   border-radius: 40px;
   border: 1px solid var(--line-soft);
   background: white;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   text-align: center;
 }
 .param-reset {
@@ -905,7 +905,7 @@ input[type="number"] {
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 0.85em;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
 }
 .ai-msg.assistant pre {
   background: var(--moss-wash);
@@ -924,7 +924,7 @@ input[type="number"] {
   border: 1px dashed var(--lichen-strong);
   padding: 3px 10px;
   border-radius: 40px;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
 }
 .ai-tool-chip.error { color: var(--signal); background: var(--signal-wash); border-color: var(--signal-line); }
 
@@ -1144,14 +1144,14 @@ input[type="number"] {
 
 .param-key {
   color: var(--ink-soft);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.85rem;
 }
 
 .param-value {
   color: var(--canopy);
   font-weight: 600;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
 }
 
 /* 模式切换按钮 */
