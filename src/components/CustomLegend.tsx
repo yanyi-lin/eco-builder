@@ -1,5 +1,4 @@
 import type { EcoModelSpec } from "../eco/types";
-import { MAX_DATA_POINTS } from "../eco/constants";
 import { displayName } from "../eco/i18n";
 import { useI18n } from "../i18n/LanguageProvider";
 
@@ -17,21 +16,6 @@ interface CustomLegendProps {
 export function CustomLegend({ spec, hiddenStates, onToggle, counts }: CustomLegendProps) {
   const { lang, t } = useI18n();
   const nameOf = (s: (typeof spec.species)[number]) => displayName(s.name, s.name_en, lang);
-  // 名单分隔符随语言切换（中文顿号 / 英文逗号）
-  const joinNames = (list: (typeof spec.species)[number][]) =>
-    list.map(nameOf).join(lang === "en" ? ", " : "、");
-  // 图例说明为整句 i18n 模板（{left}/{right}/{n} 占位），避免多 key 拼接
-  // 在英文下产生语序与空格问题
-  const note = String(t("legend.note"))
-    .replace(
-      "{left}",
-      joinNames(spec.species.filter((s) => s.axis === "left")) || String(t("legend.leftFallback")),
-    )
-    .replace(
-      "{right}",
-      joinNames(spec.species.filter((s) => s.axis === "right")) || String(t("legend.otherFallback")),
-    )
-    .replace("{n}", String(MAX_DATA_POINTS));
 
   // 物种较多（>4）时图例从浮层转为图表上方文档流（限高内滚动），
   // 避免浮层大面积遮挡曲线（10 物种实测遮挡绘图区 47%）
@@ -88,7 +72,6 @@ export function CustomLegend({ spec, hiddenStates, onToggle, counts }: CustomLeg
           );
         })}
       </div>
-      <p className="legend-note">※ {note}</p>
     </div>
   );
 }

@@ -111,21 +111,6 @@ button {
   min-width: 0;
 }
 
-/* 样方标签：图鉴编号，衬线小字距，博物学记录纸气质 */
-.plot-tag {
-  font-family: var(--font-body);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--bark);
-  background: var(--moss-wash);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-pill);
-  padding: 2px 12px;
-  width: fit-content;
-}
-
 .site-title {
   font-family: var(--font-body);
   font-size: 1.9rem;
@@ -134,14 +119,6 @@ button {
   color: var(--ink-strong);
   letter-spacing: 0.02em;
   line-height: 1.25;
-}
-
-/* 双语副标：另一语言模型名，斜体（图鉴学名气质） */
-.plot-sub {
-  font-style: italic;
-  font-size: 0.85rem;
-  color: var(--ink-faint);
-  letter-spacing: 0.03em;
 }
 
 .site-actions {
@@ -279,29 +256,6 @@ button {
 }
 canvas { width: 100% !important; height: auto !important; max-height: 460px; }
 
-/* 样方标签（签名元素）：卡内左上角，图鉴编号小字 */
-.plot-tag-inline {
-  position: absolute;
-  top: 14px;
-  left: 18px;
-  z-index: 2;
-  font-family: var(--font-body);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--bark);
-  background: var(--paper-glass);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-pill);
-  padding: 2px 10px;
-  pointer-events: none;
-  max-width: 55%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ========================= 图例 chips（图鉴浮层） ========================= */
 .chart-container {
   position: relative;
@@ -387,19 +341,6 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   flex-shrink: 0;
 }
 
-/* 图例说明（教学注记）：浮层底部整句 */
-.legend-note {
-  font-size: 0.72rem;
-  color: var(--ink-soft);
-  line-height: 1.5;
-  text-align: right;
-  margin: 0;
-  background: var(--paper-glass);
-  border-radius: var(--r-md);
-  padding: 2px 10px;
-  backdrop-filter: blur(3px);
-}
-
 /* 多物种（>4）模式：图例退为图表上方文档流，限高内滚动，
    图表绘图区保持完整可见（实测 10 物种浮层会遮挡 47%） */
 .legend-chips.stacked {
@@ -412,11 +353,8 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   scrollbar-width: thin;
 }
 .legend-chips.stacked .legend-chip-row { justify-content: flex-start; }
-.legend-chips.stacked .legend-note { text-align: left; }
 /* 文档流模式下 chart-container 无需浮层避让留白 */
 .legend-chips.stacked ~ .chart-container { padding-top: 0; }
-/* 卡内样方标签与文档流图例首行重叠（左上角），且顶栏站牌已有同信息，隐藏 */
-.chart-card:has(.legend-chips.stacked) .plot-tag-inline { display: none; }
 
 .note {
   font-size: 0.8rem;
@@ -993,17 +931,13 @@ input[type="number"] {
   /* 图例 chips 在窄屏收敛：隐藏数量与轴徽章，保留色点+名 */
   .chip-count, .chip-axis { display: none; }
   .chip-name { max-width: 7em; font-size: 0.75rem; }
-  /* 窄屏图例从浮层退化为文档流（置于图表上方），
-     避免说明句大面积遮挡曲线 */
+  /* 窄屏图例从浮层退化为文档流（置于图表上方），避免遮挡曲线 */
   .legend-chips {
     position: static;
     max-width: none;
     margin: 0 6px 8px;
   }
-  /* 窄屏隐藏卡内样方标签：与顶栏站牌信息重复，且会盖住首个图例 chip */
-  .plot-tag-inline { display: none; }
   .legend-chip-row { justify-content: flex-start; }
-  .legend-note { text-align: left; padding: 2px 6px; }
   .chart-container { padding-top: 0; }
   /* 时间读数窄屏独占一行居中，呈现走带计数器观感 */
   .time-readout { margin-left: 0; width: 100%; text-align: center; }

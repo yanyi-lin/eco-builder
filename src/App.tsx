@@ -59,13 +59,7 @@ export function App() {
       <div className="dashboard">
         <header className="site-header">
           <div className="site-id">
-            {/* 样方标签（签名元素）：图鉴编号 + 双语副标，博物学记录纸气质。
-                内置模型为 No.001，AI 构建的定制模型为 No.002 */}
-            {mode === "simulate" && spec && (
-              <span className="plot-tag">
-                {customSpec ? "No.002" : "No.001"} · {String(t("plot.label"))}
-              </span>
-            )}
+            {/* build 模式显示模式标签；模拟模式标题即模型名（当前语言） */}
             {mode === "build" && <span className="plot-tag">{String(t("app.modeBuild"))}</span>}
             <h1 className="site-title">
               {mode === "build"
@@ -74,12 +68,6 @@ export function App() {
                   ? displayName(spec.name, spec.name_en, lang)
                   : t("app.title.simulate")}
             </h1>
-            {/* 双语副标：当前语言展示另一语言的模型名（斜体，图鉴学名气质） */}
-            {mode === "simulate" && spec && (
-              <span className="plot-sub">
-                {lang === "zh" ? spec.name_en : spec.name}
-              </span>
-            )}
           </div>
           <div className="site-actions">
             {/* 1. 语言选择长条（分段控件：中文/EN，当前语言深色高亮） */}

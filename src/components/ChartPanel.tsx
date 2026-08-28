@@ -66,11 +66,8 @@ export function ChartPanel({ sim, chart, onOpenTuner }: ChartPanelProps) {
 
   return (
     <div className="plot-area">
-      {/* 图表卡（主角）：canvas + 浮层样方标签 + 图例 chips */}
+      {/* 图表卡（主角）：canvas + 图例 chips */}
       <div className="chart-card">
-        <div className="plot-tag-inline" aria-hidden="true">
-          {t("plot.label")} · {displayName(sim.spec.name, sim.spec.name_en, lang)}
-        </div>
         <CustomLegend
           spec={sim.spec}
           hiddenStates={hiddenStates}
