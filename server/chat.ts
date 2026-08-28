@@ -30,6 +30,8 @@ export interface ChatEnv {
   BUILD_MAX_STEPS: number;
   /** 模拟模式单轮步数上限（默认 20） */
   SIMULATE_MAX_STEPS: number;
+  /** 单次响应输出 token 上限（防单次回复成本无上界；env: MAX_OUTPUT_TOKENS，默认 4096） */
+  MAX_OUTPUT_TOKENS: number;
 }
 
 /**
@@ -57,6 +59,7 @@ export function loadChatEnv(source: Record<string, unknown> = {}): ChatEnv {
     OPENAI_MODEL,
     BUILD_MAX_STEPS: parseSteps("BUILD_MAX_STEPS", 60),
     SIMULATE_MAX_STEPS: parseSteps("SIMULATE_MAX_STEPS", 20),
+    MAX_OUTPUT_TOKENS: parseSteps("MAX_OUTPUT_TOKENS", 4096),
   };
 }
 
@@ -96,9 +99,11 @@ export async function handleChatRequest(
     messages: await convertToModelMessages(cleanMessages, { ignoreIncompleteToolCalls: true }),
     tools: buildTools(),
     // 停止条件：构建模式 run-model 后即停，兜底步数上限（env 可配置）
+    // maxOutputTokens：单响应输出上限（成本护栏；工具调用参数也计入，4k 足够任一轮）
     stopWhen: isBuildMode
       ? [hasToolCall("run-model"), stepCountIs(env.BUILD_MAX_STEPS)]
       : stepCountIs(env.SIMULATE_MAX_STEPS),
+    maxOutputTokens: env.MAX_OUTPUT_TOKENS,
     abortSignal: signal,
     // 诊断日志：区分"前端续发问题"与"LLM 厂商 API 问题"
     onError: (err) => {
