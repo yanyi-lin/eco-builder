@@ -2,19 +2,22 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <!-- 允许缩放（无障碍要求：移除原 user-scalable=no） -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="智能体协助的生态系统构建工具：基于 Lotka-Volterra 模型的高中生物学教学演示与建模" />
+  <meta name="theme-color" content="#f0f7f0" />
   <title>生态模型构建器 | 智能体助手</title>
   <!-- Favicon：SVG 矢量优先，PNG 作为旧浏览器回退（源文件见 public/favicon.svg） -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
-  <!-- 本地 vendor（脱离 CDN/外网依赖，见 public/vendor/） -->
-  <script src="/vendor/chart.umd.min.js"></script>
+  <!-- 本地 vendor（脱离 CDN/外网依赖，见 public/vendor/）；defer 避免阻塞首屏渲染 -->
+  <script src="/vendor/chart.umd.min.js" defer></script>
   <!-- marked.js：AI 回复 markdown 渲染 -->
-  <script src="/vendor/marked.min.js"></script>
+  <script src="/vendor/marked.min.js" defer></script>
   <!-- DOMPurify：净化 HTML，防 XSS -->
-  <script src="/vendor/purify.min.js"></script>
+  <script src="/vendor/purify.min.js" defer></script>
 </head>
 <body>
   <div id="root"></div>

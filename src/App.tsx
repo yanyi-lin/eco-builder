@@ -57,26 +57,32 @@ export function App() {
   return (
     <div className="app-shell">
       <div className="dashboard">
-        <div className="title-row">
-          <h1>
-            {mode === "build"
-              ? t("app.title.build")
-              : spec
-                ? displayName(spec.name, spec.name_en, lang)
-                : t("app.title.simulate")}
-          </h1>
-          <div className="title-actions">
+        <header className="site-header">
+          <div className="site-id">
+            {/* build 模式显示模式标签；模拟模式标题即模型名（当前语言） */}
+            {mode === "build" && <span className="plot-tag">{String(t("app.modeBuild"))}</span>}
+            <h1 className="site-title">
+              {mode === "build"
+                ? t("app.title.build")
+                : spec
+                  ? displayName(spec.name, spec.name_en, lang)
+                  : t("app.title.simulate")}
+            </h1>
+          </div>
+          <div className="site-actions">
             {/* 1. 语言选择长条（分段控件：中文/EN，当前语言深色高亮） */}
             <div className="lang-toggle" role="group" aria-label={String(t("lang.label"))}>
               <button
                 className={`lang-opt${lang === "zh" ? " active" : ""}`}
                 onClick={() => setLang("zh")}
+                aria-pressed={lang === "zh"}
               >
                 中文
               </button>
               <button
                 className={`lang-opt${lang === "en" ? " active" : ""}`}
                 onClick={() => setLang("en")}
+                aria-pressed={lang === "en"}
               >
                 EN
               </button>
@@ -89,10 +95,12 @@ export function App() {
             >
               i
             </button>
-            {/* 3. 构建模式长条（切换模拟/构建） */}
+            {/* 3. 构建模式长条（切换模拟/构建，aria-pressed 暴露当前模式给辅助技术） */}
             <button
               className="mode-toggle-btn"
               onClick={mode === "simulate" ? handleSwitchToBuild : handleSwitchToSimulate}
+              aria-pressed={mode === "build"}
+              aria-label={`${String(t("app.modeToggleAria"))} ${mode === "build" ? String(t("app.modeBuild")) : String(t("app.modeSimulate"))}`}
             >
               {mode === "simulate" ? String(t("app.switchToBuild")) : String(t("app.switchToSimulate"))}
             </button>
@@ -111,7 +119,7 @@ export function App() {
             {/* 模型选择器（历史遗留，隐藏保留） */}
             <ModelSelector value={modelId} onChange={handleModelChange} disabled />
           </div>
-        </div>
+        </header>
 
         <div className="main-layout">
           {mode === "build" ? (
@@ -123,7 +131,7 @@ export function App() {
               onOpenTuner={() => setTunerOpen(true)}
             />
           )}
-          <Suspense fallback={<div className="chat-fallback">加载聊天中...</div>}>
+          <Suspense fallback={<div className="chat-fallback">{t("chat.fallback")}</div>}>
             <AgentChatDrawer
               agent={agent}
               collapsed={aiCollapsed}
@@ -133,17 +141,16 @@ export function App() {
         </div>
       </div>
 
+      {/* InfoModal 两种模式均可打开（i 按钮常驻；此前 build 模式点击无响应） */}
+      <InfoModal open={infoOpen} onClose={() => setInfoOpen(false)} />
       {mode === "simulate" && (
-        <>
-          <InfoModal open={infoOpen} onClose={() => setInfoOpen(false)} />
-          <EcoTunerModal
-            spec={spec}
-            currentParams={sim.params}
-            open={tunerOpen}
-            onClose={() => setTunerOpen(false)}
-            onApply={(p) => sim.applyParams(p)}
-          />
-        </>
+        <EcoTunerModal
+          spec={spec}
+          currentParams={sim.params}
+          open={tunerOpen}
+          onClose={() => setTunerOpen(false)}
+          onApply={(p) => sim.applyParams(p)}
+        />
       )}
     </div>
   );

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n/LanguageProvider";
+import { useModalBehavior } from "./modalBehavior";
 
 interface InfoModalProps {
   open: boolean;
@@ -10,11 +11,15 @@ interface InfoModalProps {
 export function InfoModal({ open, onClose }: InfoModalProps) {
   const { t } = useI18n();
   const [showCredits, setShowCredits] = useState(false);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
   // 关闭主窗口时重置鸣谢子窗口状态，避免下次打开残留
   useEffect(() => {
     if (!open) setShowCredits(false);
   }, [open]);
+
+  // Esc 关闭 + 焦点圈禁（读屏/键盘用户可完整操作弹窗）
+  useModalBehavior(open && !showCredits, onClose, contentRef);
 
   if (!open) return null;
   return (
@@ -26,21 +31,23 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <div className="modal-content">
-          <div className="info-title">{t("info.title")}</div>
+        <div
+          ref={contentRef}
+          className="modal-content"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="infoModalTitle"
+          tabIndex={-1}
+        >
+          <h2 className="info-title" id="infoModalTitle">{t("info.title")}</h2>
           <div className="info-desc">
-            <p>
-              <strong>{t("info.textbookTitle")}</strong>
+            <p className="info-purpose">
+              <strong>{t("info.purpose")}</strong>
               <br />
-              {t("info.textbookContent")}
-            </p>
-            <p>{t("info.purpose")}</p>
-            <p>
-              <strong>{t("info.assistantTitle")}</strong>
-              <br />
-              {t("info.assistantDesc")}
+              {t("info.tagline")}
             </p>
           </div>
+          <hr className="info-divider" />
           <div className="info-authors">
             <div className="authors-label">{t("info.authorsLabel")}</div>
             <div className="author-names">
@@ -68,6 +75,9 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
 /** 鸣谢弹窗：贡献者 + 开源/数据支持（嵌套在主窗口之上，z-index 更高） */
 function CreditsModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  // 子弹窗自带 Esc/焦点圈禁（主弹窗在子弹窗打开期间暂停监听，避免 Esc 双关）
+  useModalBehavior(true, onClose, contentRef);
   return (
     <div
       className="modal-overlay credits-overlay"
@@ -75,8 +85,15 @@ function CreditsModal({ onClose }: { onClose: () => void }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal-content credits-content">
-        <div className="info-title">{t("credits.title")}</div>
+      <div
+        ref={contentRef}
+        className="modal-content credits-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="creditsModalTitle"
+        tabIndex={-1}
+      >
+        <h2 className="info-title" id="creditsModalTitle">{t("credits.title")}</h2>
         <div className="credits-item">
           <span className="credit-name">{t("credits.liuzimuName")}</span>
           <br />
@@ -96,7 +113,7 @@ function CreditsModal({ onClose }: { onClose: () => void }) {
           {t("credits.chartjs")}
         </div>
         <div className="credits-item">
-          {t("credits.express")}
+          {t("credits.hono")}
         </div>
         <div className="credits-item">
           {t("credits.gbif")}
