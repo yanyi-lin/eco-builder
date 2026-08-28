@@ -42,6 +42,8 @@ export const messages = {
     // === DisturbPanel 扰动 ===
     "disturb.title": "生态扰动（减少种群数量）",
     "disturb.reduceAria": "将 {species} 的数量减少 {percent}%",
+    "disturb.expand": "展开干预面板",
+    "disturb.collapse": "收起干预面板",
     "disturb.note":
       "点击后即时减少当前种群对应百分比（不低于最小阈值），系统自动调节展现恢复力与周期性",
 
@@ -192,6 +194,8 @@ export const messages = {
 
     "disturb.title": "Ecological Disturbance (reduce population)",
     "disturb.reduceAria": "Reduce {species} population by {percent}%",
+    "disturb.expand": "Expand disturbance panel",
+    "disturb.collapse": "Collapse disturbance panel",
     "disturb.note":
       "Instantly reduces the population by the selected percentage (not below the minimum threshold); the system self-regulates to show resilience and periodicity",
 

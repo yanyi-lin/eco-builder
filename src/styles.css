@@ -444,12 +444,35 @@ canvas { width: 100% !important; height: auto !important; max-height: 460px; }
   border-radius: var(--r-lg);
   border: 1px solid var(--line-soft);
 }
-.disturb-title {
+/* 标题栏即折叠开关（同 AI 抽屉交互模式） */
+.disturb-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
   font-weight: 700;
-  margin-bottom: 0.8rem;
   font-size: 1.02rem;
   color: var(--ink-soft);
+  padding: 0;
+  margin-bottom: 0.8rem;
 }
+.disturb-toggle:hover { color: var(--ink); }
+.disturb-chev { flex-shrink: 0; transition: transform 0.2s; }
+.disturb-toggle[aria-expanded="false"] .disturb-chev { transform: rotate(-90deg); }
+
+/* 物种行滚动区：限高约 3 行（每行约 40px），多物种时内部滚动 */
+.disturb-scroll {
+  max-height: 8.5rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  /* 右侧留细缝，避免滚动条压住按钮圆角 */
+  padding-right: 4px;
+}
+
 /* 每行：物种标签左对齐 + 三档按钮右伸展（桌上一行一物种） */
 .disturb-group {
   display: grid;
