@@ -8,12 +8,14 @@ interface ModelSelectorProps {
   disabled?: boolean;
 }
 
+/** 模型选择器（历史遗留，默认隐藏保留扩展位） */
 export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps) {
   const { t } = useI18n();
-  const hasMultiple = Object.keys(MODELS).length > 1;
   return (
-    <div className={`model-selector-wrap${disabled ? " model-selector-hidden" : ""}`} title={hasMultiple ? String(t("model.switchTitle")) : String(t("model.singleTitle"))}>
-      <span>🧬</span>
+    <div
+      className={`model-selector${disabled ? " model-selector-hidden" : ""}`}
+      title={String(t("model.selectLabel"))}
+    >
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -26,8 +28,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
           </option>
         ))}
       </select>
-      {!hasMultiple && <small style={{ opacity: 0.6 }}>·</small>}
-      {value === DEFAULT_MODEL_ID && !hasMultiple && null}
+      {value === DEFAULT_MODEL_ID && null}
     </div>
   );
 }

@@ -41,14 +41,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <div className="error-boundary">
-          <div className="error-boundary-box">
-            <div className="error-boundary-title">{this.props.t("error.title")}</div>
-            <div className="error-boundary-desc">
+        <div className="crash">
+          <div className="crash-box">
+            <div className="crash-title">{this.props.t("error.title")}</div>
+            <div className="crash-desc">
               {this.props.t("error.desc")}
             </div>
-            <div className="error-boundary-msg">{this.state.message}</div>
-            <button className="error-boundary-btn" onClick={this.handleReload}>
+            <div className="crash-msg">{this.state.message}</div>
+            <button className="btn btn-primary crash-reload" onClick={this.handleReload}>
               {this.props.t("error.reload")}
             </button>
           </div>

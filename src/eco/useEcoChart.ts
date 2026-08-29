@@ -14,6 +14,15 @@ import { useI18n } from "../i18n/LanguageProvider";
  *  用时超 50ms" Violation）。合并 + 节流后渲染频率 ~12fps，曲线仍连续。 */
 const RENDER_INTERVAL_MS = 80;
 
+/** 画布内文字字体（canvas 不解析 CSS 变量，这里用与 styles.css 一致的具体值）：
+ *  坐标刻度/标题用系统等宽栈呼应"仪器读数"设计语言。 */
+const CANVAS_FONT = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
+/** 记录纸网格线：云杉墨的极淡版本（与 --spruce 同色系） */
+const GRID_COLOR = "rgba(31, 50, 39, 0.08)";
+const GRID_BORDER = "rgba(31, 50, 39, 0.30)";
+/** 轴标题文字：苔灰绿（--moss） */
+const AXIS_TITLE_COLOR = "#64756a";
+
 export interface UseEcoChart {
   /** canvas 回调 ref，组件挂到 <canvas> 上；
    *  canvas 元素挂载/替换（如模式切换重建 DOM）会触发图表重建 */
@@ -119,7 +128,7 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
         ctx.lineTo(x, chartArea.bottom);
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.font = "600 10px system-ui, sans-serif";
+        ctx.font = `600 10px ${CANVAS_FONT}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillStyle = sp.color;
@@ -154,12 +163,17 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
         datasets: buildDatasets(currentSpec),
       } as ChartData<"line">,
       options: {        responsive: true,
-        maintainAspectRatio: true,
+        // 高度由容器（.plot-frame）控制：桌面端限高保证控制轨不挤出首屏
+        maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
         plugins: {
           tooltip: {
             mode: "index",
             intersect: false,
+            // 提示浮层用云杉墨底 + 等宽字：与读数风格一致
+            backgroundColor: "rgba(31, 50, 39, 0.92)",
+            titleFont: { family: CANVAS_FONT },
+            bodyFont: { family: CANVAS_FONT },
             callbacks: {
               label: (c) =>
                 `${c.dataset.label}: ${(c.raw as number).toFixed(1)} ${String(t("chart.tooltipUnit"))}`,
@@ -172,13 +186,20 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
             title: {
               display: true,
               text: String(t("chart.axisTime")),
-              // canvas 不解析 CSS 变量，直接用 --bark 的具体色值
-              color: "#6b4f3a",
-              font: { weight: "bold" },
+              color: AXIS_TITLE_COLOR,
+              font: { weight: "bold", family: CANVAS_FONT, size: 11 },
             },
-            // 记录纸网格：暖褐淡色，低调保留结构感
-            grid: { color: "rgba(107, 79, 58, 0.10)" },
-            border: { color: "rgba(107, 79, 58, 0.30)" },
+            // 记录纸网格：云杉墨极淡色，低调保留结构感
+            grid: { color: GRID_COLOR },
+            border: { color: GRID_BORDER },
+            // 密集采样下刻度自动抽稀（水平展示，避免旋转挤压）
+            ticks: {
+              autoSkip: true,
+              maxTicksLimit: 12,
+              maxRotation: 0,
+              color: AXIS_TITLE_COLOR,
+              font: { family: CANVAS_FONT, size: 10 },
+            },
           },
           "y-plant": {
             type: "linear",
@@ -187,15 +208,15 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
               display: true,
               text: displayName(left.title, left.title_en, lang),
               color: left.color,
-              font: { weight: "bold" },
+              font: { weight: "bold", family: CANVAS_FONT, size: 11 },
             },
             min: left.min,
             max: left.max,
-            // 记录纸网格：暖褐淡色（与 x 轴一致）；轴线用主物种色，
-            // 与图例组头/曲线同色，传达「物种 ↔ 轴」对应
-            grid: { color: "rgba(107, 79, 58, 0.10)" },
+            // 记录纸网格：与 x 轴一致；轴线用主物种色，
+            // 与图例组标/曲线同色，传达「物种 ↔ 轴」对应
+            grid: { color: GRID_COLOR },
             border: { color: left.color },
-            ticks: { stepSize: left.step, color: left.color },
+            ticks: { stepSize: left.step, color: left.color, font: { family: CANVAS_FONT, size: 10 } },
           },
           "y-prey": {
             type: "linear",
@@ -204,14 +225,14 @@ export function useEcoChart(spec: EcoModelSpec): UseEcoChart {
               display: true,
               text: displayName(right.title, right.title_en, lang),
               color: right.color,
-              font: { weight: "bold" },
+              font: { weight: "bold", family: CANVAS_FONT, size: 11 },
             },
             min: right.min,
             max: right.max,
             grid: { drawOnChartArea: false },
             // 右轴线同右轴主物种色（与左轴呼应）
             border: { color: right.color },
-            ticks: { stepSize: right.step, color: right.color },
+            ticks: { stepSize: right.step, color: right.color, font: { family: CANVAS_FONT, size: 10 } },
           },
         },
         elements: { line: { borderJoinStyle: "round" } },

@@ -60,24 +60,24 @@ export function MessageList({ messages, onSample }: MessageListProps) {
       String(t("chat.sample3")),
     ];
     return (
-      <div className="ai-empty">
-        <div className="ai-empty-intro">
+      <div className="note-empty">
+        <p className="empty-lede">
           {t("chat.emptyIntro")}<br />
           {t("chat.emptyGuide")}
-        </div>
-        <ul className="ai-empty-list">
+        </p>
+        <ul className="empty-caps">
           <li>{t("chat.emptyRead")}</li>
           <li>{t("chat.emptySet")}</li>
           <li>{t("chat.emptyControl")}</li>
           <li>{t("chat.emptyBuild")}</li>
         </ul>
-        <div className="ai-empty-try">{t("chat.emptyTry")}</div>
-        <div className="ai-empty-chips">
+        <p className="empty-try">{t("chat.emptyTry")}</p>
+        <div className="empty-chips">
           {samples.map((s) => (
             <button
               key={s}
               type="button"
-              className="ai-sample-chip"
+              className="sample-chip"
               onClick={() => onSample(s)}
             >
               {s}
@@ -89,7 +89,7 @@ export function MessageList({ messages, onSample }: MessageListProps) {
   }
 
   return (
-    <div className="ai-messages" ref={containerRef}>
+    <div className="note-stream" ref={containerRef}>
       {messages.map((msg) => (
         <MessageItem key={msg.id} msg={msg} />
       ))}
@@ -121,7 +121,7 @@ function MessageItem({ msg }: { msg: UIMessage }) {
     <>
       {text && (
         <div
-          className={`ai-msg ${isUser ? "user" : "assistant"}`}
+          className={`msg ${isUser ? "msg-user" : "msg-ai"}`}
           {...(isUser
             ? {}
             : { dangerouslySetInnerHTML: { __html: renderMarkdown(text) } })}
@@ -148,13 +148,13 @@ function MessageItem({ msg }: { msg: UIMessage }) {
             output !== null &&
             "error" in (output as Record<string, unknown>));
         const summary = formatToolSummary(name, input);
-        // 工具状态用文字呈现（原 ✓/❌ 符号会被读屏读作"对勾/叉号"，语义不明）
+        // 工具状态用文字呈现（对勾/叉号符号会被读屏读作"对勾/叉号"，语义不明）
         const stateText = isError ? t("chat.toolFailed") : t("chat.toolDone");
         return (
-          <div key={`${msg.id}-tool-${i}`} className={`ai-tool-chip${isError ? " error" : ""}`}>
-            {name}
-            {summary ? ` · ${summary}` : ""}
-            {` · ${stateText}`}
+          <div key={`${msg.id}-tool-${i}`} className={`tool-chip${isError ? " bad" : ""}`}>
+            <span className="tool-name">{name}</span>
+            {summary && <span className="tool-args">{summary}</span>}
+            <span className="tool-state">{stateText}</span>
           </div>
         );
       })}
