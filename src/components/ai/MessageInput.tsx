@@ -40,9 +40,12 @@ export function MessageInput({ onSend, disabled, onStop }: MessageInputProps) {
   };
 
   return (
-    <div className="ai-input-row">
+    <div className="composer">
       <textarea
         ref={textareaRef}
+        className="composer-input"
+        name="message"
+        autoComplete="off"
         value={text}
         onChange={(e) => {
           setText(e.target.value);
@@ -52,12 +55,14 @@ export function MessageInput({ onSend, disabled, onStop }: MessageInputProps) {
         placeholder={disabled ? String(t("chat.inputThinking")) : String(t("chat.inputPlaceholder"))}
         disabled={disabled}
         rows={1}
+        enterKeyHint="send"
         aria-label={String(t("chat.inputAria"))}
       />
       {disabled ? (
-        // 流式期间提供停止入口（原实现只能等待回复完成，无法中断）
+        // 流式期间提供停止入口（发送钮让位给停止钮）
         <button
-          className="ai-send-btn stop"
+          type="button"
+          className="composer-send stop"
           onClick={onStop}
           aria-label={String(t("chat.stopAria"))}
           title={String(t("chat.stop"))}
@@ -68,7 +73,8 @@ export function MessageInput({ onSend, disabled, onStop }: MessageInputProps) {
         </button>
       ) : (
         <button
-          className="ai-send-btn"
+          type="button"
+          className="composer-send"
           onClick={send}
           disabled={!text.trim()}
           aria-label={String(t("chat.send"))}

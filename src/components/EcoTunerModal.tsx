@@ -77,46 +77,46 @@ export function EcoTunerModal({
   };
 
   return (
-    <div id="ecoTunerModal" className="modal-overlay" onClick={(e) => {
+    <div id="ecoTunerModal" className="overlay" onClick={(e) => {
       if (e.target === e.currentTarget) onClose();
     }}>
       <div
         ref={contentRef}
-        className="modal-content"
+        className="dialog wide"
         role="dialog"
         aria-modal="true"
         aria-labelledby="ecoTunerTitle"
         tabIndex={-1}
       >
-        <div className="modal-header">
+        <header className="dialog-head">
           <h2 id="ecoTunerTitle">{t("tuner.header")}</h2>
-          <button className="close-modal-x" onClick={onClose} aria-label={String(t("tuner.closeAria"))}>
+          <button type="button" className="close-x" onClick={onClose} aria-label={String(t("tuner.closeAria"))}>
             &times;
           </button>
-        </div>
-        <div className="modal-body">
-          <div className="param-group">
+        </header>
+        <div className="dialog-body">
+          <div className="tune-group">
             <h3>{t("tuner.groupDynamic")}</h3>
             {dynamicKeys.map((k) => renderRow(k, spec.paramMeta[k]))}
           </div>
-          <div className="param-group">
+          <div className="tune-group">
             <h3>{t("tuner.groupInitial")}</h3>
             {initKeys.map((k) => renderRow(k, spec.paramMeta[k]))}
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="modal-btn danger" onClick={resetAll}>
+        <footer className="dialog-foot">
+          <button type="button" className="btn btn-danger" onClick={resetAll}>
             {t("tuner.resetAll")}
           </button>
-          <div style={{ display: "flex", gap: 12 }}>
-            <button className="modal-btn secondary" onClick={onClose}>
+          <div className="foot-actions">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>
               {t("tuner.cancel")}
             </button>
-            <button className="modal-btn primary" onClick={apply}>
+            <button type="button" className="btn btn-primary" onClick={apply}>
               {t("tuner.apply")}
             </button>
           </div>
-        </div>
+        </footer>
       </div>
     </div>
   );
@@ -163,12 +163,13 @@ function ParamRow({ paramKey, meta, value, label, resetLabel, onChange, onReset 
 
   const idBase = `param-${paramKey}`;
   return (
-    <div className="param-row">
-      <label className="param-label" htmlFor={`${idBase}-num`}>
+    <div className="tune-row">
+      <label className="tune-label" htmlFor={`${idBase}-num`}>
         {label} <small>{paramKey}</small>
       </label>
       <input
         id={`${idBase}-range`}
+        className="tune-range"
         type="range"
         min={meta.min}
         max={meta.max}
@@ -179,6 +180,7 @@ function ParamRow({ paramKey, meta, value, label, resetLabel, onChange, onReset 
       />
       <input
         id={`${idBase}-num`}
+        className="tune-num"
         ref={inputRef}
         type="number"
         step={meta.step}
@@ -196,7 +198,7 @@ function ParamRow({ paramKey, meta, value, label, resetLabel, onChange, onReset 
         }}
         aria-label={`${label} (${paramKey})`}
       />
-      <button className="param-reset" onClick={onReset} title={resetLabel}>
+      <button type="button" className="tune-reset" onClick={onReset} title={resetLabel}>
         {resetLabel}
       </button>
     </div>
